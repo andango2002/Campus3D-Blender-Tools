@@ -163,13 +163,13 @@ Compatibility with other Blender versions and operating systems is not guarantee
 Current public beta:
 
 ```text
-v0.4.5
+v0.4.6
 ```
 
 Download the release ZIP:
 
 ```text
-Campus3D_Tools_v0.4.5_BuildingHeightFix.zip
+Campus3D_Tools_v0.4.6_ExtensionCandidate_fixed.zip
 ```
 
 Do not extract the ZIP when installing it into Blender.
@@ -180,7 +180,7 @@ In Blender:
 Edit
 → Preferences
 → Add-ons
-→ Install
+→ Install from Disk
 ```
 
 Select the ZIP file and enable the Campus3D add-on.
@@ -325,7 +325,7 @@ Possible learning activities include:
 Current Blender add-on version:
 
 ```text
-v0.4.5
+v0.4.6
 ```
 
 Status:
@@ -351,9 +351,7 @@ Campus3D Workflow
 
 ## License
 
-The project is intended to be released under an open-source license.
-
-GPL-3.0 licensing will be used for the public release.
+This project is licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later).
 
 ---
 
