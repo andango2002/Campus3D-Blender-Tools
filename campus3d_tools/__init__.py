@@ -1,8 +1,8 @@
 
 bl_info = {
-    "name": "Campus3D Workflow [B] — Blender Tools",
-    "author": "OpenAI + Akinaru Iino",
-    "version": (0, 4, 5),
+    "name": "Campus3D Tools",
+    "author": "Akinaru Iino",
+    "version": (0, 4, 6),
     "blender": (4, 5, 0),
     "location": "View3D > Sidebar > Campus3D",
     "description": "Campus3D Workflow [B]: import GSI2Campus3D packages, finish scenes and prepare GLB for CampusMint",
@@ -1176,7 +1176,7 @@ class CAMPUS3D_PT_panel(Panel):
         brand.label(text="3D finishing & GLB export for CampusMint")
         brand.separator()
         brand.label(text="Est. 2026 | Powered by IINO Lab.")
-        brand.label(text="Add-on v0.4.5")
+        brand.label(text="Add-on v0.4.6")
         flow=brand.row()
         flow.scale_y=0.95
         flow.label(text="[A] QGIS  →  [B] Blender  →  GLB")
@@ -1259,7 +1259,7 @@ class CAMPUS3D_PT_panel(Panel):
         b.label(text="UV Editing / Shadingを開かなくてもOK")
 
         info=layout.box()
-        info.label(text="Campus3D Workflow [B] | v0.4.4")
+        info.label(text="Campus3D Workflow [B] | v0.4.6")
         info.label(text="・パッケージTerrain画像は自動貼付ONが標準")
         info.label(text="・旧方式OBJだけ既存マテリアル削除を選択可")
         info.label(text="・6ファイルをファイル単位で確実に4分類")
