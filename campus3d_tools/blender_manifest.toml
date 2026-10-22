@@ -1,0 +1,31 @@
+schema_version = "1.0.0"
+
+id = "campus3d_tools"
+version = "0.4.6"
+name = "Campus3D Tools"
+tagline = "Import and prepare Campus3D regional models for GLB workflows"
+maintainer = "Akinaru Iino"
+type = "add-on"
+
+website = "https://github.com/andango2002/Campus3D-Blender-Tools"
+tags = ["Import-Export", "3D View", "Pipeline"]
+
+blender_version_min = "4.5.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+copyright = [
+  "2026 Akinaru Iino",
+]
+
+[permissions]
+files = "Import Campus3D JSON OBJ and image files selected by the user"
+
+[build]
+paths_exclude_pattern = [
+  "__pycache__/",
+  "/.git/",
+  "/*.zip",
+]
