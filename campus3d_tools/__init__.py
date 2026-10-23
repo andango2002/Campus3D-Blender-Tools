@@ -2,7 +2,7 @@
 bl_info = {
     "name": "Campus3D Tools",
     "author": "Akinaru Iino",
-    "version": (0, 4, 6),
+    "version": (0, 4, 7),
     "blender": (4, 5, 0),
     "location": "View3D > Sidebar > Campus3D",
     "description": "Campus3D Workflow [B]: import GSI2Campus3D packages, finish scenes and prepare GLB for CampusMint",
@@ -471,6 +471,55 @@ def make_guide_material():
     return mat
 
 
+def load_or_reload_image(filepath):
+    """Load a file-backed image and force Blender to refresh it from disk.
+
+    Campus3D packages intentionally reuse stable filenames such as
+    Terrain_Texture.png. Blender normally caches an existing image datablock,
+    so re-importing an updated package can keep showing the old pixels until
+    Blender is restarted. This helper matches by normalized absolute filepath,
+    reloads existing datablocks from disk, and only creates a new datablock
+    when none exists.
+    """
+    target = os.path.normcase(os.path.abspath(bpy.path.abspath(filepath)))
+
+    for img in list(bpy.data.images):
+        try:
+            if getattr(img, "source", None) != 'FILE':
+                continue
+            current = os.path.normcase(os.path.abspath(bpy.path.abspath(img.filepath)))
+            if current != target:
+                continue
+
+            # Keep the same datablock so existing material-node references remain valid.
+            img.filepath = filepath
+            try:
+                img.filepath_raw = filepath
+            except Exception:
+                pass
+            try:
+                img.reload()
+                img.update()
+            except Exception:
+                # If reload fails, remove the stale datablock and fall through to a clean load.
+                try:
+                    bpy.data.images.remove(img)
+                except Exception:
+                    pass
+                break
+            return img
+        except Exception:
+            continue
+
+    img = bpy.data.images.load(filepath, check_existing=False)
+    try:
+        img.reload()
+        img.update()
+    except Exception:
+        pass
+    return img
+
+
 def strip_qgis_terrain_materials(objects, purge_images=False):
     """Remove materials imported from QGIS/OBJ from all terrain meshes.
     Optionally remove image datablocks which become unused.
@@ -884,7 +933,7 @@ class CAMPUS3D_OT_import_package(Operator, ImportHelper):
             tex_path=os.path.join(base,tex_rel)
             if os.path.exists(tex_path):
                 try:
-                    img=bpy.data.images.load(tex_path,check_existing=True)
+                    img=load_or_reload_image(tex_path)
                     mat=ensure_map_material(img,1.0)
                     assign_material(all_imported,mat)
                     s.map_image_path=tex_path
@@ -1011,7 +1060,7 @@ class CAMPUS3D_OT_apply_map(Operator):
         # Hard reset inherited QGIS/OBJ terrain materials so the new map always wins.
         strip_qgis_terrain_materials(objs, False)
         try:
-            img=bpy.data.images.load(path,check_existing=True)
+            img=load_or_reload_image(path)
         except Exception as e:
             self.report({'ERROR'},f"画像を読めません: {e}")
             return {'CANCELLED'}
@@ -1176,7 +1225,7 @@ class CAMPUS3D_PT_panel(Panel):
         brand.label(text="3D finishing & GLB export for CampusMint")
         brand.separator()
         brand.label(text="Est. 2026 | Powered by IINO Lab.")
-        brand.label(text="Add-on v0.4.6")
+        brand.label(text="Add-on v0.4.7")
         flow=brand.row()
         flow.scale_y=0.95
         flow.label(text="[A] QGIS  →  [B] Blender  →  GLB")
