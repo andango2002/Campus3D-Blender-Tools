@@ -2,7 +2,7 @@
 bl_info = {
     "name": "Campus3D Tools",
     "author": "Akinaru Iino",
-    "version": (0, 4, 9),
+    "version": (0, 4, 10),
     "blender": (4, 5, 0),
     "location": "View3D > Sidebar > Campus3D",
     "description": "Campus3D Workflow [B]: import GSI2Campus3D packages, finish scenes and prepare GLB for CampusMint",
@@ -61,7 +61,7 @@ TRANSLATIONS = {
         (_TRANSLATION_CONTEXT, 'Could not read manifest: '): 'manifestを読めません: ',
         (_TRANSLATION_CONTEXT, 'This is not a Campus3D Blender Package manifest'): 'Campus3D Blender Packageのmanifestではありません',
         (_TRANSLATION_CONTEXT, 'Required OBJ files were not found: '): '必要OBJが見つかりません: ',
-        (_TRANSLATION_CONTEXT, 'This is a legacy Campus3D package. If the Z multiplier is not 1, building heights may also be exaggerated. Re-export the package with GSI2Campus3D v0.4.98 or later.'): '旧形式Campus3Dパッケージです。Z倍率が1以外の場合、建物高さも誇張されている可能性があります。GSI2Campus3D v0.4.98以降でパッケージを再出力してください。',
+        (_TRANSLATION_CONTEXT, 'This is a legacy Campus3D package. If the Z multiplier is not 1, building heights may also be exaggerated. Re-export the package with GSI2Campus3D v0.4.18 or later.'): '旧形式Campus3Dパッケージです。Z倍率が1以外の場合、建物高さも誇張されている可能性があります。GSI2Campus3D v0.4.18以降でパッケージを再出力してください。',
         (_TRANSLATION_CONTEXT, ' / Terrain image:'): ' / Terrain画像:',
         (_TRANSLATION_CONTEXT, 'Campus3D package import complete 1:'): 'Campus3Dパッケージ読込完了 1:',
         (_TRANSLATION_CONTEXT, 'None/OFF'): 'なし/OFF',
@@ -1209,7 +1209,7 @@ class CAMPUS3D_OT_import_package(Operator, ImportHelper):
             self.report(
                 {'WARNING'},
                 "This is a legacy Campus3D package. If the Z multiplier is not 1, building heights may also be exaggerated. "
-                "Re-export the package with GSI2Campus3D v0.4.98 or later."
+                "Re-export the package with GSI2Campus3D v0.4.18 or later."
             )
         self.report({'INFO'},f"Campus3D package import complete 1:{denom} / Z×{vz:.2f} / Terrain image:{'ON' if tex_applied else 'None/OFF'} / {summary}")
         return {'FINISHED'}
@@ -1454,6 +1454,60 @@ class CAMPUS3D_OT_focus(Operator):
         frame_objects(context,ts)
         return {'FINISHED'}
 
+class CAMPUS3D_OT_recalculate_building_normals(Operator):
+    """Recalculate outward-facing normals for original or GLB_READY building meshes.
+
+    Especially useful for packages exported before GSI2Campus3D v0.4.24.
+    Never changes Terrain, roads, or unrelated meshes.
+    """
+    bl_idname = "campus3d.recalculate_building_normals"
+    bl_label = "Recalculate Building Normals"
+    bl_description = "Recalculate normals of building meshes in the chosen collection (for legacy QGIS OBJ packages)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    target: EnumProperty(
+        name="Target",
+        items=[
+            ('GLB_READY', "GLB_READY (export copy)", "Modify only exported building copies"),
+            ('Campus3D', "Campus3D (original)", "Modify original building meshes"),
+        ],
+        default='GLB_READY',
+    )
+
+    def execute(self, context):
+        root = bpy.data.collections.get(self.target)
+        if root is None:
+            self.report({'ERROR'}, f"Collection {self.target} was not found")
+            return {'CANCELLED'}
+        count = 0
+        faces = 0
+        for obj in root.all_objects:
+            if obj.type != 'MESH':
+                continue
+            cat = str(obj.get('campus3d_package_category', ''))
+            if not (obj.name.startswith('Building_') or cat.startswith('Building_')):
+                continue
+            if not obj.data.polygons:
+                continue
+            # Never mutate a shared mesh datablock outside the target collection.
+            if obj.data.users > 1:
+                obj.data = obj.data.copy()
+            bm = bmesh.new()
+            try:
+                bm.from_mesh(obj.data)
+                bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+                faces += len(bm.faces)
+                bm.to_mesh(obj.data)
+                obj.data.update()
+                count += 1
+            finally:
+                bm.free()
+        if not count:
+            self.report({'WARNING'}, "No building mesh objects found")
+            return {'CANCELLED'}
+        self.report({'INFO'}, f"Recalculated normals for {count} building objects / {faces:,} faces")
+        return {'FINISHED'}
+
 # ------------------------------------------------------------------------
 # UI
 # ------------------------------------------------------------------------
@@ -1480,7 +1534,7 @@ class CAMPUS3D_PT_panel(Panel):
         brand.label(text="3D finishing & GLB export for CampusMint")
         brand.separator()
         brand.label(text="Est. 2026 | Powered by IINO Lab.")
-        brand.label(text="Add-on v0.4.9")
+        brand.label(text="Add-on v0.4.10")
         flow=brand.row()
         flow.scale_y=0.95
         flow.label(text="[A] QGIS  →  [B] Blender  →  GLB")
@@ -1515,6 +1569,15 @@ class CAMPUS3D_PT_panel(Panel):
             b.prop(s,"purge_unused_qgis_images")
         b.prop(s,"auto_frame")
         b.operator("campus3d.import_obj",icon='IMPORT')
+
+        b=layout.box()
+        b.label(text="[B-Normals] Legacy building face repair")
+        b.label(text="QGIS v0.4.24+ fixes new exports at source.")
+        op=b.operator("campus3d.recalculate_building_normals", text="Repair GLB_READY Building Normals", icon='NORMALS_FACE')
+        op.target='GLB_READY'
+        op=b.operator("campus3d.recalculate_building_normals", text="Repair Campus3D Building Normals", icon='NORMALS_FACE')
+        op.target='Campus3D'
+        b.label(text="For GLB Preflight export, repair GLB_READY copies.")
 
         b=layout.box()
         b.label(text="[B-2] Apply Map to Terrain")
@@ -1563,7 +1626,7 @@ class CAMPUS3D_PT_panel(Panel):
         b.label(text="No need to open UV Editing or Shading.")
 
         info=layout.box()
-        info.label(text="Campus3D Workflow [B] | v0.4.9")
+        info.label(text="Campus3D Workflow [B] | v0.4.10")
         info.label(text="• Automatic package Terrain image application is enabled by default.")
         info.label(text="• Existing material removal is optional for legacy OBJ imports.")
         info.label(text="• Six files are reliably organized into four building categories.")
@@ -1586,6 +1649,7 @@ classes=(
     CAMPUS3D_OT_water_add,
     CAMPUS3D_OT_water_delete,
     CAMPUS3D_OT_focus,
+    CAMPUS3D_OT_recalculate_building_normals,
     CAMPUS3D_PT_panel,
 )
 

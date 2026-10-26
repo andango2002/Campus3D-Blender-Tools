@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "campus3d_tools"
-version = "0.4.9"
+version = "0.4.10"
 name = "Campus3D Tools"
 tagline = "Import and prepare Campus3D regional models for GLB workflows"
 maintainer = "Akinaru Iino"
