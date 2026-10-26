@@ -61,7 +61,7 @@ TRANSLATIONS = {
         (_TRANSLATION_CONTEXT, 'Could not read manifest: '): 'manifestを読めません: ',
         (_TRANSLATION_CONTEXT, 'This is not a Campus3D Blender Package manifest'): 'Campus3D Blender Packageのmanifestではありません',
         (_TRANSLATION_CONTEXT, 'Required OBJ files were not found: '): '必要OBJが見つかりません: ',
-        (_TRANSLATION_CONTEXT, 'This is a legacy Campus3D package. If the Z multiplier is not 1, building heights may also be exaggerated. Re-export the package with GSI2Campus3D v0.4.18 or later.'): '旧形式Campus3Dパッケージです。Z倍率が1以外の場合、建物高さも誇張されている可能性があります。GSI2Campus3D v0.4.18以降でパッケージを再出力してください。',
+        (_TRANSLATION_CONTEXT, 'This is a legacy Campus3D package. If the Z multiplier is not 1, building heights may also be exaggerated. Re-export the package with GSI2Campus3D v0.4.98 or later.'): '旧形式Campus3Dパッケージです。Z倍率が1以外の場合、建物高さも誇張されている可能性があります。GSI2Campus3D v0.4.98以降でパッケージを再出力してください。',
         (_TRANSLATION_CONTEXT, ' / Terrain image:'): ' / Terrain画像:',
         (_TRANSLATION_CONTEXT, 'Campus3D package import complete 1:'): 'Campus3Dパッケージ読込完了 1:',
         (_TRANSLATION_CONTEXT, 'None/OFF'): 'なし/OFF',
@@ -1209,7 +1209,7 @@ class CAMPUS3D_OT_import_package(Operator, ImportHelper):
             self.report(
                 {'WARNING'},
                 "This is a legacy Campus3D package. If the Z multiplier is not 1, building heights may also be exaggerated. "
-                "Re-export the package with GSI2Campus3D v0.4.18 or later."
+                "Re-export the package with GSI2Campus3D v0.4.98 or later."
             )
         self.report({'INFO'},f"Campus3D package import complete 1:{denom} / Z×{vz:.2f} / Terrain image:{'ON' if tex_applied else 'None/OFF'} / {summary}")
         return {'FINISHED'}
@@ -1480,7 +1480,7 @@ class CAMPUS3D_PT_panel(Panel):
         brand.label(text="3D finishing & GLB export for CampusMint")
         brand.separator()
         brand.label(text="Est. 2026 | Powered by IINO Lab.")
-        brand.label(text="Add-on v0.4.7")
+        brand.label(text="Add-on v0.4.9")
         flow=brand.row()
         flow.scale_y=0.95
         flow.label(text="[A] QGIS  →  [B] Blender  →  GLB")
@@ -1563,7 +1563,7 @@ class CAMPUS3D_PT_panel(Panel):
         b.label(text="No need to open UV Editing or Shading.")
 
         info=layout.box()
-        info.label(text="Campus3D Workflow [B] | v0.4.6")
+        info.label(text="Campus3D Workflow [B] | v0.4.9")
         info.label(text="• Automatic package Terrain image application is enabled by default.")
         info.label(text="• Existing material removal is optional for legacy OBJ imports.")
         info.label(text="• Six files are reliably organized into four building categories.")
