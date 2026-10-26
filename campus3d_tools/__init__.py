@@ -2,7 +2,7 @@
 bl_info = {
     "name": "Campus3D Tools",
     "author": "Akinaru Iino",
-    "version": (0, 4, 7),
+    "version": (0, 4, 9),
     "blender": (4, 5, 0),
     "location": "View3D > Sidebar > Campus3D",
     "description": "Campus3D Workflow [B]: import GSI2Campus3D packages, finish scenes and prepare GLB for CampusMint",
@@ -18,6 +18,105 @@ from mathutils import Vector
 from bpy.props import BoolProperty, FloatProperty, PointerProperty, StringProperty, EnumProperty
 from bpy.types import Operator, Panel, PropertyGroup
 from bpy_extras.io_utils import ImportHelper
+
+# Optional Japanese UI translations; English remains the source/default language.
+_TRANSLATION_CONTEXT = bpy.app.translations.contexts.default
+TRANSLATIONS = {
+    "ja_JP": {
+        (_TRANSLATION_CONTEXT, 'Terrain could not be detected'): 'Terrainを検出できません',
+        (_TRANSLATION_CONTEXT, 'Correct QGIS axes for Blender'): 'QGIS軸をBlenderへ補正',
+        (_TRANSLATION_CONTEXT, 'QGIS DEM real width X (m)'): 'QGIS DEM 実幅 X (m)',
+        (_TRANSLATION_CONTEXT, 'QGIS DEM real height Y (m)'): 'QGIS DEM 実幅 Y (m)',
+        (_TRANSLATION_CONTEXT, 'Target scale'): '目標縮尺',
+        (_TRANSLATION_CONTEXT, '1:1000 (recommended for exercises)'): '1:1000（演習標準）',
+        (_TRANSLATION_CONTEXT, '1:1 (real size)'): '1:1（実寸）',
+        (_TRANSLATION_CONTEXT, 'Auto-calibrate scale from real dimensions'): '実寸幅から縮尺を自動校正',
+        (_TRANSLATION_CONTEXT, 'Remove geometry outside Terrain'): 'Terrain外の飛び地を掃除',
+        (_TRANSLATION_CONTEXT, 'Cleanup margin'): '掃除マージン',
+        (_TRANSLATION_CONTEXT, 'Set origin to each geometry'): '原点を各ジオメトリへ',
+        (_TRANSLATION_CONTEXT, 'Move Terrain center to world origin'): 'Terrain中心をワールド原点へ',
+        (_TRANSLATION_CONTEXT, 'Organize collections'): 'Collection整理',
+        (_TRANSLATION_CONTEXT, 'Frame Terrain after import'): '読込後にTerrainを表示',
+        (_TRANSLATION_CONTEXT, 'Map image'): '地図画像',
+        (_TRANSLATION_CONTEXT, 'Horizontal shift (%)'): '左右移動 (%)',
+        (_TRANSLATION_CONTEXT, 'Vertical shift (%)'): '上下移動 (%)',
+        (_TRANSLATION_CONTEXT, 'Horizontal scale (%)'): '横倍率 (%)',
+        (_TRANSLATION_CONTEXT, 'Vertical scale (%)'): '縦倍率 (%)',
+        (_TRANSLATION_CONTEXT, 'Rotation (°)'): '回転 (°)',
+        (_TRANSLATION_CONTEXT, 'Flip horizontally'): '左右反転',
+        (_TRANSLATION_CONTEXT, 'Flip vertically'): '上下反転',
+        (_TRANSLATION_CONTEXT, 'Opacity'): '不透明度',
+        (_TRANSLATION_CONTEXT, 'Live update'): 'リアルタイム反映',
+        (_TRANSLATION_CONTEXT, 'Remove existing Terrain materials for legacy OBJ'): '旧方式OBJの既存Terrainマテリアルを削除',
+        (_TRANSLATION_CONTEXT, 'Remove unused legacy image data'): '未使用の旧画像データも削除',
+        (_TRANSLATION_CONTEXT, 'Replace existing Campus3D objects'): '既存Campus3Dを置き換える',
+        (_TRANSLATION_CONTEXT, 'Apply package Terrain image automatically'): 'パッケージのTerrain画像を自動貼付',
+        (_TRANSLATION_CONTEXT, 'Water elevation (m)'): '海面標高 (m)',
+        (_TRANSLATION_CONTEXT, 'Real-world elevation. For Campus3D packages, it is converted automatically to Blender Z using the manifest elevation origin and scale.'): '実世界の標高。Campus3Dパッケージではmanifestの標高原点と縮尺からBlender Zへ自動変換します',
+        (_TRANSLATION_CONTEXT, 'Water margin (m)'): '広がりマージン (m)',
+        (_TRANSLATION_CONTEXT, 'Real-world distance to extend the water plane beyond the Terrain boundary.'): 'Terrain外周から水面をさらに広げる実世界距離',
+        (_TRANSLATION_CONTEXT, 'Create water material automatically'): '海面マテリアルを自動作成',
+        (_TRANSLATION_CONTEXT, 'Import Campus3D Package'): 'Campus3Dパッケージを一括読込',
+        (_TRANSLATION_CONTEXT, 'Import Terrain, roads, and four building categories separately from a campus3d_manifest.json created by GSI2Campus3D.'): 'GSI2Campus3Dが作ったcampus3d_manifest.jsonからTerrain/道路/建物4分類を別々に読み込みます',
+        (_TRANSLATION_CONTEXT, 'Could not read manifest: '): 'manifestを読めません: ',
+        (_TRANSLATION_CONTEXT, 'This is not a Campus3D Blender Package manifest'): 'Campus3D Blender Packageのmanifestではありません',
+        (_TRANSLATION_CONTEXT, 'Required OBJ files were not found: '): '必要OBJが見つかりません: ',
+        (_TRANSLATION_CONTEXT, 'This is a legacy Campus3D package. If the Z multiplier is not 1, building heights may also be exaggerated. Re-export the package with GSI2Campus3D v0.4.18 or later.'): '旧形式Campus3Dパッケージです。Z倍率が1以外の場合、建物高さも誇張されている可能性があります。GSI2Campus3D v0.4.18以降でパッケージを再出力してください。',
+        (_TRANSLATION_CONTEXT, ' / Terrain image:'): ' / Terrain画像:',
+        (_TRANSLATION_CONTEXT, 'Campus3D package import complete 1:'): 'Campus3Dパッケージ読込完了 1:',
+        (_TRANSLATION_CONTEXT, 'None/OFF'): 'なし/OFF',
+        (_TRANSLATION_CONTEXT, 'Import Campus3D OBJ'): 'Campus3D OBJを読み込む',
+        (_TRANSLATION_CONTEXT, 'No newly imported objects were detected'): '新規オブジェクトを検出できません',
+        (_TRANSLATION_CONTEXT, ' merged / Terrain '): ' 結合 / Terrain ',
+        (_TRANSLATION_CONTEXT, 'm / UV ready'): 'm / UV準備済み',
+        (_TRANSLATION_CONTEXT, 'Import complete / OBJ names '): '読込完了 / OBJ名 ',
+        (_TRANSLATION_CONTEXT, 'Apply / Update Map'): '地図を貼る / 更新',
+        (_TRANSLATION_CONTEXT, 'Select a map image'): '地図画像を選択してください',
+        (_TRANSLATION_CONTEXT, 'Could not read image: '): '画像を読めません: ',
+        (_TRANSLATION_CONTEXT, ' Terrain object(s) updated with map image'): ' Terrain object(s) に地図を貼りました',
+        (_TRANSLATION_CONTEXT, 'Show Alignment Guide'): '位置合わせガイドを表示',
+        (_TRANSLATION_CONTEXT, 'Displayed a 10×10 alignment guide'): '10×10ガイドを表示しました',
+        (_TRANSLATION_CONTEXT, 'Reset Alignment'): '位置合わせをリセット',
+        (_TRANSLATION_CONTEXT, 'Alignment reset to defaults'): '位置合わせを初期状態へ戻しました',
+        (_TRANSLATION_CONTEXT, 'Remove QGIS Terrain Image Completely'): 'QGIS衛星画像を完全に外す',
+        (_TRANSLATION_CONTEXT, ' material slot(s) removed, images '): ' material slot(s) を削除、画像 ',
+        (_TRANSLATION_CONTEXT, ' removed'): ' 件削除',
+        (_TRANSLATION_CONTEXT, 'Reclassify Building Collections'): '建物Collectionを再分類',
+        (_TRANSLATION_CONTEXT, 'Reclassify buildings into four categories using OBJ names, mesh names, material names, and related data.'): 'OBJ名だけでなくMesh名・Material名なども使って建物4分類をやり直します',
+        (_TRANSLATION_CONTEXT, 'Reclassified: '): '再分類: ',
+        (_TRANSLATION_CONTEXT, 'Add / Update Water Plane'): '海面を追加 / 更新',
+        (_TRANSLATION_CONTEXT, 'Create or update a water plane covering the Terrain using the specified real-world elevation and margin.'): 'Terrain全体を覆う水面を、指定した実標高とマージンで作成または更新します',
+        (_TRANSLATION_CONTEXT, 'Water plane updated: elevation '): '海面を更新: 標高 ',
+        (_TRANSLATION_CONTEXT, 'Delete Water Plane'): '海面を削除',
+        (_TRANSLATION_CONTEXT, 'Delete the Campus3D Water object.'): 'Campus3DのWaterオブジェクトを削除します',
+        (_TRANSLATION_CONTEXT, 'Water plane deleted'): '海面を削除しました',
+        (_TRANSLATION_CONTEXT, 'No water plane to delete'): '削除する海面はありません',
+        (_TRANSLATION_CONTEXT, 'Frame Entire Terrain'): 'Terrain全体を表示',
+        (_TRANSLATION_CONTEXT, '← Continues from [A] GSI2Campus3D'): '← [A] GSI2Campus3D の続きです',
+        (_TRANSLATION_CONTEXT, '[B-1] Recommended: GSI2Campus3D Package'): '[B-1] 推奨：GSI2Campus3Dパッケージ',
+        (_TRANSLATION_CONTEXT, 'Select campus3d_manifest.json'): 'campus3d_manifest.json を選択',
+        (_TRANSLATION_CONTEXT, 'Categories, scale, origin, and Z multiplier are read automatically from the manifest.'): '分類・縮尺・原点・Z倍率はmanifestから自動取得',
+        (_TRANSLATION_CONTEXT, 'QGIS packages from v0.3.2 onward can include a Terrain image.'): '※v0.3.2以降のQGISパッケージはTerrain画像を同梱可能',
+        (_TRANSLATION_CONTEXT, '[B-Legacy] Manual Single-OBJ Import'): '[B-旧] 単一OBJの手動読込',
+        (_TRANSLATION_CONTEXT, 'Legacy OBJ Options'): '旧方式OBJオプション',
+        (_TRANSLATION_CONTEXT, '[B-2] Apply Map to Terrain'): '[B-2] 地図をTerrainに貼る',
+        (_TRANSLATION_CONTEXT, 'Adjust partial maps or alignment offsets'): '部分地図・位置ずれの調整',
+        (_TRANSLATION_CONTEXT, 'Apply Adjustment'): '調整を反映',
+        (_TRANSLATION_CONTEXT, 'Numeric changes are applied automatically after about 0.05 seconds.'): '数値変更を約0.05秒後に自動反映',
+        (_TRANSLATION_CONTEXT, '[B-3] Water Plane'): '[B-3] 海面',
+        (_TRANSLATION_CONTEXT, 'Manifest scale: 1:'): 'manifest基準: 1:',
+        (_TRANSLATION_CONTEXT, '[B-4] Display Tools'): '[B-4] 表示補助',
+        (_TRANSLATION_CONTEXT, 'No need to open UV Editing or Shading.'): 'UV Editing / Shadingを開かなくてもOK',
+        (_TRANSLATION_CONTEXT, '• Automatic package Terrain image application is enabled by default.'): '・パッケージTerrain画像は自動貼付ONが標準',
+        (_TRANSLATION_CONTEXT, '• Existing material removal is optional for legacy OBJ imports.'): '・旧方式OBJだけ既存マテリアル削除を選択可',
+        (_TRANSLATION_CONTEXT, '• Six files are reliably organized into four building categories.'): '・6ファイルをファイル単位で確実に4分類',
+        (_TRANSLATION_CONTEXT, '• Map alignment supports live updates.'): '・地図位置調整はリアルタイム反映対応',
+        (_TRANSLATION_CONTEXT, '• Create a water plane at real-world elevation 0 m with one click.'): '・海面を実標高0m基準でワンクリック生成',
+        (_TRANSLATION_CONTEXT, 'Same-extent image → apply directly'): '同範囲画像 → そのまま貼付',
+        (_TRANSLATION_CONTEXT, 'Partial image → adjust shift, scale, and rotation manually'): '部分画像 → 移動/倍率/回転で手動調整',
+    },
+}
+
 
 CATEGORY_MAP = [
     ("Terrain", ("terrain", "dem")),
@@ -730,7 +829,7 @@ def create_or_update_water(context):
     objs = list(scene.objects)
     ext = terrain_extent(objs)
     if not ext:
-        raise RuntimeError("Terrainを検出できません")
+        raise RuntimeError("Terrain could not be detected")
 
     xmin, xmax, ymin, ymax, _, _ = ext
     margin = real_horizontal_to_blender(scene, s.water_margin_m)
@@ -792,61 +891,61 @@ def delete_water():
 # ------------------------------------------------------------------------
 
 class Campus3DSettings(PropertyGroup):
-    auto_orient: BoolProperty(name="QGIS軸をBlenderへ補正", default=True)
+    auto_orient: BoolProperty(name="Correct QGIS axes for Blender", default=True)
 
-    real_width_m: FloatProperty(name="QGIS DEM 実幅 X (m)", default=0.0, min=0.0, precision=3)
-    real_height_m: FloatProperty(name="QGIS DEM 実幅 Y (m)", default=0.0, min=0.0, precision=3)
+    real_width_m: FloatProperty(name="QGIS DEM real width X (m)", default=0.0, min=0.0, precision=3)
+    real_height_m: FloatProperty(name="QGIS DEM real height Y (m)", default=0.0, min=0.0, precision=3)
     target_scale: EnumProperty(
-        name="目標縮尺",
+        name="Target scale",
         items=[
-            ('1000',"1:1000（演習標準）",""),
+            ('1000',"1:1000 (recommended for exercises)",""),
             ('500',"1:500",""),
             ('100',"1:100",""),
-            ('1',"1:1（実寸）",""),
+            ('1',"1:1 (real size)",""),
         ],
         default='1000'
     )
-    auto_calibrate: BoolProperty(name="実寸幅から縮尺を自動校正", default=True)
+    auto_calibrate: BoolProperty(name="Auto-calibrate scale from real dimensions", default=True)
 
-    geometry_clip: BoolProperty(name="Terrain外の飛び地を掃除", default=True)
-    outside_margin: FloatProperty(name="掃除マージン", default=0.002, min=0.0, soft_max=0.1)
-    set_origins: BoolProperty(name="原点を各ジオメトリへ", default=True)
-    recenter_scene: BoolProperty(name="Terrain中心をワールド原点へ", default=True)
-    organize: BoolProperty(name="Collection整理", default=True)
-    auto_frame: BoolProperty(name="読込後にTerrainを表示", default=True)
+    geometry_clip: BoolProperty(name="Remove geometry outside Terrain", default=True)
+    outside_margin: FloatProperty(name="Cleanup margin", default=0.002, min=0.0, soft_max=0.1)
+    set_origins: BoolProperty(name="Set origin to each geometry", default=True)
+    recenter_scene: BoolProperty(name="Move Terrain center to world origin", default=True)
+    organize: BoolProperty(name="Organize collections", default=True)
+    auto_frame: BoolProperty(name="Frame Terrain after import", default=True)
 
-    map_image_path: StringProperty(name="地図画像", subtype='FILE_PATH')
-    map_shift_x_pct: FloatProperty(name="左右移動 (%)", default=0.0, soft_min=-100, soft_max=100, update=schedule_live_map_update)
-    map_shift_y_pct: FloatProperty(name="上下移動 (%)", default=0.0, soft_min=-100, soft_max=100, update=schedule_live_map_update)
-    map_zoom_x_pct: FloatProperty(name="横倍率 (%)", default=100.0, min=1.0, soft_max=500, update=schedule_live_map_update)
-    map_zoom_y_pct: FloatProperty(name="縦倍率 (%)", default=100.0, min=1.0, soft_max=500, update=schedule_live_map_update)
-    map_rotation_deg: FloatProperty(name="回転 (°)", default=0.0, min=-180.0, max=180.0, update=schedule_live_map_update)
-    map_flip_x: BoolProperty(name="左右反転", default=False, update=schedule_live_map_update)
-    map_flip_y: BoolProperty(name="上下反転", default=False, update=schedule_live_map_update)
-    map_opacity: FloatProperty(name="不透明度", default=1.0, min=0.05, max=1.0, subtype='FACTOR', update=schedule_live_map_update)
-    map_live_update: BoolProperty(name="リアルタイム反映", default=True)
-    remove_qgis_materials_on_import: BoolProperty(name="旧方式OBJの既存Terrainマテリアルを削除", default=False)
-    purge_unused_qgis_images: BoolProperty(name="未使用の旧画像データも削除", default=False)
-    replace_existing_package: BoolProperty(name="既存Campus3Dを置き換える", default=True)
-    apply_package_texture: BoolProperty(name="パッケージのTerrain画像を自動貼付", default=True)
+    map_image_path: StringProperty(name="Map image", subtype='FILE_PATH')
+    map_shift_x_pct: FloatProperty(name="Horizontal shift (%)", default=0.0, soft_min=-100, soft_max=100, update=schedule_live_map_update)
+    map_shift_y_pct: FloatProperty(name="Vertical shift (%)", default=0.0, soft_min=-100, soft_max=100, update=schedule_live_map_update)
+    map_zoom_x_pct: FloatProperty(name="Horizontal scale (%)", default=100.0, min=1.0, soft_max=500, update=schedule_live_map_update)
+    map_zoom_y_pct: FloatProperty(name="Vertical scale (%)", default=100.0, min=1.0, soft_max=500, update=schedule_live_map_update)
+    map_rotation_deg: FloatProperty(name="Rotation (°)", default=0.0, min=-180.0, max=180.0, update=schedule_live_map_update)
+    map_flip_x: BoolProperty(name="Flip horizontally", default=False, update=schedule_live_map_update)
+    map_flip_y: BoolProperty(name="Flip vertically", default=False, update=schedule_live_map_update)
+    map_opacity: FloatProperty(name="Opacity", default=1.0, min=0.05, max=1.0, subtype='FACTOR', update=schedule_live_map_update)
+    map_live_update: BoolProperty(name="Live update", default=True)
+    remove_qgis_materials_on_import: BoolProperty(name="Remove existing Terrain materials for legacy OBJ", default=False)
+    purge_unused_qgis_images: BoolProperty(name="Remove unused legacy image data", default=False)
+    replace_existing_package: BoolProperty(name="Replace existing Campus3D objects", default=True)
+    apply_package_texture: BoolProperty(name="Apply package Terrain image automatically", default=True)
     water_elevation_m: FloatProperty(
-        name="海面標高 (m)",
-        description="実世界の標高。Campus3Dパッケージではmanifestの標高原点と縮尺からBlender Zへ自動変換します",
+        name="Water elevation (m)",
+        description="Real-world elevation. For Campus3D packages, it is converted automatically to Blender Z using the manifest elevation origin and scale.",
         default=0.0,
         min=-100.0,
         max=100.0,
         precision=2
     )
     water_margin_m: FloatProperty(
-        name="広がりマージン (m)",
-        description="Terrain外周から水面をさらに広げる実世界距離",
+        name="Water margin (m)",
+        description="Real-world distance to extend the water plane beyond the Terrain boundary.",
         default=200.0,
         min=0.0,
         soft_max=2000.0,
         precision=1
     )
     water_auto_material: BoolProperty(
-        name="海面マテリアルを自動作成",
+        name="Create water material automatically",
         default=True
     )
 
@@ -854,10 +953,165 @@ class Campus3DSettings(PropertyGroup):
 # Operators
 # ------------------------------------------------------------------------
 
+
+def store_manifest_in_scene(scene, manifest, manifest_path=None):
+    """Store Campus3D manifest metadata inside the .blend scene.
+
+    The full manifest is preserved as JSON text for future compatibility,
+    while frequently used geolocation/settings are also copied to explicit
+    scene custom properties for easy access by future tools such as
+    Campus3D Thermal.
+    """
+    try:
+        scene["campus3d_manifest_json"] = json.dumps(
+            manifest, ensure_ascii=False, separators=(",", ":")
+        )
+    except Exception:
+        # Fallback to ASCII-safe JSON if a string cannot be serialized normally.
+        scene["campus3d_manifest_json"] = json.dumps(
+            manifest, ensure_ascii=True, separators=(",", ":")
+        )
+
+    if manifest_path:
+        try:
+            scene["campus3d_manifest_source"] = str(manifest_path)
+        except Exception:
+            pass
+
+    geo = manifest.get("geolocation", {}) if isinstance(manifest, dict) else {}
+    if isinstance(geo, dict):
+        mesh_codes = geo.get("mesh_codes") or []
+        second_mesh_codes = geo.get("second_mesh_codes") or []
+        third_mesh_codes = geo.get("third_mesh_codes") or []
+
+        # Blender ID properties do not reliably support arbitrary nested lists
+        # across versions, so store list values as JSON strings.
+        scene["campus3d_mesh_codes_json"] = json.dumps(mesh_codes, ensure_ascii=False)
+        scene["campus3d_second_mesh_codes_json"] = json.dumps(second_mesh_codes, ensure_ascii=False)
+        scene["campus3d_third_mesh_codes_json"] = json.dumps(third_mesh_codes, ensure_ascii=False)
+
+        extent = geo.get("extent_wgs84") or {}
+        if isinstance(extent, dict):
+            for key in ("west", "south", "east", "north"):
+                val = extent.get(key)
+                if val is not None:
+                    try:
+                        scene[f"campus3d_extent_{key}"] = float(val)
+                    except Exception:
+                        pass
+
+        center = geo.get("center_wgs84") or {}
+        if isinstance(center, dict):
+            lat = center.get("latitude")
+            lon = center.get("longitude")
+            if lat is not None:
+                try:
+                    scene["campus3d_center_latitude"] = float(lat)
+                except Exception:
+                    pass
+            if lon is not None:
+                try:
+                    scene["campus3d_center_longitude"] = float(lon)
+                except Exception:
+                    pass
+
+        for src_key, dst_key in (
+            ("source_crs", "campus3d_source_crs"),
+            ("projected_crs", "campus3d_projected_crs"),
+        ):
+            val = geo.get(src_key)
+            if val:
+                scene[dst_key] = str(val)
+
+    # Explicit visual vs physical vertical scale metadata.
+    vertical = manifest.get("vertical_scaling", {}) if isinstance(manifest, dict) else {}
+    if isinstance(vertical, dict) and vertical:
+        vvis = vertical.get("visual_vertical_scale")
+        vphys = vertical.get("physical_vertical_scale", 1.0)
+        if vvis is not None:
+            try:
+                scene["campus3d_visual_vertical_scale"] = float(vvis)
+            except Exception:
+                pass
+        try:
+            scene["campus3d_physical_vertical_scale"] = float(vphys)
+        except Exception:
+            scene["campus3d_physical_vertical_scale"] = 1.0
+        scene["campus3d_terrain_exaggerated"] = bool(vertical.get("terrain_exaggerated", False))
+        scene["campus3d_buildings_real_scale"] = bool(vertical.get("buildings_real_scale", True))
+        mode = vertical.get("geometry_mode")
+        if mode:
+            scene["campus3d_geometry_mode"] = str(mode)
+    else:
+        # Backward-compatible fallback for older manifests.
+        try:
+            legacy = (manifest.get("model_size") or {}).get("z_multiplier")
+            if legacy is not None:
+                scene["campus3d_visual_vertical_scale"] = float(legacy)
+                scene["campus3d_physical_vertical_scale"] = 1.0
+                scene["campus3d_terrain_exaggerated"] = abs(float(legacy) - 1.0) > 1e-9
+                scene["campus3d_buildings_real_scale"] = True
+                scene["campus3d_geometry_mode"] = "terrain_exaggerated_buildings_real_scale"
+        except Exception:
+            pass
+
+    # Copy several stable top-level settings for convenient inspection.
+    for src_key, dst_key in (
+        ("scale_denominator", "campus3d_scale_denominator"),
+        ("vertical_scale", "campus3d_vertical_scale"),
+        ("epsg", "campus3d_epsg"),
+    ):
+        if isinstance(manifest, dict) and src_key in manifest:
+            val = manifest.get(src_key)
+            try:
+                if isinstance(val, (int, float)):
+                    scene[dst_key] = val
+                elif val is not None:
+                    scene[dst_key] = str(val)
+            except Exception:
+                pass
+
+    scene["campus3d_manifest_embedded"] = True
+
+
+def get_campus3d_vertical_scaling(scene):
+    """Return Campus3D vertical-scale metadata for physical analysis."""
+    try:
+        visual = float(scene.get("campus3d_visual_vertical_scale", 1.0))
+    except Exception:
+        visual = 1.0
+    try:
+        physical = float(scene.get("campus3d_physical_vertical_scale", 1.0))
+    except Exception:
+        physical = 1.0
+    mode = str(scene.get(
+        "campus3d_geometry_mode",
+        "terrain_exaggerated_buildings_real_scale"
+    ))
+    return {
+        "visual_vertical_scale": visual,
+        "physical_vertical_scale": physical,
+        "geometry_mode": mode,
+        "terrain_z_to_physical_factor": (physical / visual) if abs(visual) > 1e-12 else 1.0,
+    }
+
+
+def load_embedded_manifest(scene):
+    """Return embedded Campus3D manifest dict, or None when unavailable."""
+    raw = scene.get("campus3d_manifest_json")
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
 class CAMPUS3D_OT_import_package(Operator, ImportHelper):
     bl_idname="campus3d.import_package"
-    bl_label="Campus3Dパッケージを一括読込"
-    bl_description="GSI2Campus3Dが作ったcampus3d_manifest.jsonからTerrain/道路/建物4分類を別々に読み込みます"
+    bl_label="Import Campus3D Package"
+    bl_description="Import Terrain, roads, and four building categories separately from a campus3d_manifest.json created by GSI2Campus3D."
     filename_ext=".json"
     filter_glob:StringProperty(default="*.json", options={'HIDDEN'})
 
@@ -866,18 +1120,19 @@ class CAMPUS3D_OT_import_package(Operator, ImportHelper):
         try:
             with open(self.filepath,'r',encoding='utf-8') as fh:
                 manifest=json.load(fh)
+                store_manifest_in_scene(context.scene, manifest, self.filepath)
         except Exception as e:
-            self.report({'ERROR'},f"manifestを読めません: {e}")
+            self.report({'ERROR'},f"Could not read manifest: {e}")
             return {'CANCELLED'}
         if manifest.get('format')!='Campus3D Blender Package':
-            self.report({'ERROR'},"Campus3D Blender Packageのmanifestではありません")
+            self.report({'ERROR'},"This is not a Campus3D Blender Package manifest")
             return {'CANCELLED'}
         base=os.path.dirname(self.filepath)
         files=manifest.get('files',{})
         required=['Terrain','Building_Normal_Small','Building_Normal_Large','Building_Solid_Small','Building_Solid_Large']
         missing=[k for k in required if k not in files or not os.path.exists(os.path.join(base,files[k]))]
         if missing:
-            self.report({'ERROR'},"必要OBJが見つかりません: "+", ".join(missing))
+            self.report({'ERROR'},"Required OBJ files were not found: "+", ".join(missing))
             return {'CANCELLED'}
 
         if s.replace_existing_package:
@@ -953,15 +1208,15 @@ class CAMPUS3D_OT_import_package(Operator, ImportHelper):
         if vz != 1.0 and building_mode != 'terrain_exaggeration_only':
             self.report(
                 {'WARNING'},
-                "旧形式Campus3Dパッケージです。Z倍率が1以外の場合、建物高さも誇張されている可能性があります。"
-                "GSI2Campus3D v0.4.18以降でパッケージを再出力してください。"
+                "This is a legacy Campus3D package. If the Z multiplier is not 1, building heights may also be exaggerated. "
+                "Re-export the package with GSI2Campus3D v0.4.18 or later."
             )
-        self.report({'INFO'},f"Campus3Dパッケージ読込完了 1:{denom} / Z×{vz:.2f} / Terrain画像:{'ON' if tex_applied else 'なし/OFF'} / {summary}")
+        self.report({'INFO'},f"Campus3D package import complete 1:{denom} / Z×{vz:.2f} / Terrain image:{'ON' if tex_applied else 'None/OFF'} / {summary}")
         return {'FINISHED'}
 
 class CAMPUS3D_OT_import(Operator, ImportHelper):
     bl_idname="campus3d.import_obj"
-    bl_label="Campus3D OBJを読み込む"
+    bl_label="Import Campus3D OBJ"
     filename_ext=".obj"
     filter_glob:StringProperty(default="*.obj", options={'HIDDEN'})
 
@@ -984,7 +1239,7 @@ class CAMPUS3D_OT_import(Operator, ImportHelper):
 
         imported=[o for o in bpy.data.objects if o not in before]
         if not imported:
-            self.report({'ERROR'},"新規オブジェクトを検出できません")
+            self.report({'ERROR'},"No newly imported objects were detected")
             return {'CANCELLED'}
 
         bound, source_count, mesh_count = bind_source_obj_names(imported, self.filepath)
@@ -1009,7 +1264,7 @@ class CAMPUS3D_OT_import(Operator, ImportHelper):
 
         pre=terrain_size(imported)
         if not pre:
-            self.report({'ERROR'},"Terrainを検出できません")
+            self.report({'ERROR'},"Terrain could not be detected")
             return {'CANCELLED'}
 
         ext=terrain_extent(imported)
@@ -1037,23 +1292,23 @@ class CAMPUS3D_OT_import(Operator, ImportHelper):
             frame_objects(context,terrain_objects(imported))
 
         post=terrain_size(imported) or (0,0,0)
-        self.report({'INFO'},f"読込完了 / OBJ名 {bound}/{source_count} 結合 / Terrain {post[0]:.3f}×{post[1]:.3f}m / UV準備済み")
+        self.report({'INFO'},f"Import complete / OBJ names {bound}/{source_count} merged / Terrain {post[0]:.3f}×{post[1]:.3f}m / UV ready")
         return {'FINISHED'}
 
 
 class CAMPUS3D_OT_apply_map(Operator):
     bl_idname="campus3d.apply_map"
-    bl_label="地図を貼る / 更新"
+    bl_label="Apply / Update Map"
     def execute(self,context):
         s=context.scene.campus3d_settings
         path=bpy.path.abspath(s.map_image_path).strip()
         if not path or not os.path.exists(path):
-            self.report({'ERROR'},"地図画像を選択してください")
+            self.report({'ERROR'},"Select a map image")
             return {'CANCELLED'}
 
         objs=list(context.scene.objects)
         if not terrain_objects(objs):
-            self.report({'ERROR'},"Terrainを検出できません")
+            self.report({'ERROR'},"Terrain could not be detected")
             return {'CANCELLED'}
 
         generate_global_uv(objs,s)
@@ -1062,59 +1317,59 @@ class CAMPUS3D_OT_apply_map(Operator):
         try:
             img=load_or_reload_image(path)
         except Exception as e:
-            self.report({'ERROR'},f"画像を読めません: {e}")
+            self.report({'ERROR'},f"Could not read image: {e}")
             return {'CANCELLED'}
 
         mat=ensure_map_material(img,s.map_opacity)
         n=assign_material(objs,mat)
-        self.report({'INFO'},f"{n} Terrain object(s) に地図を貼りました")
+        self.report({'INFO'},f"{n} Terrain object(s) updated with map image")
         return {'FINISHED'}
 
 class CAMPUS3D_OT_guide(Operator):
     bl_idname="campus3d.show_guide"
-    bl_label="位置合わせガイドを表示"
+    bl_label="Show Alignment Guide"
     def execute(self,context):
         s=context.scene.campus3d_settings
         objs=list(context.scene.objects)
         if generate_global_uv(objs,s)==0:
-            self.report({'ERROR'},"Terrainを検出できません")
+            self.report({'ERROR'},"Terrain could not be detected")
             return {'CANCELLED'}
         strip_qgis_terrain_materials(objs, False)
         assign_material(objs,make_guide_material())
-        self.report({'INFO'},"10×10ガイドを表示しました")
+        self.report({'INFO'},"Displayed a 10×10 alignment guide")
         return {'FINISHED'}
 
 class CAMPUS3D_OT_reset_map(Operator):
     bl_idname="campus3d.reset_map"
-    bl_label="位置合わせをリセット"
+    bl_label="Reset Alignment"
     def execute(self,context):
         s=context.scene.campus3d_settings
         s.map_shift_x_pct=0.0; s.map_shift_y_pct=0.0
         s.map_zoom_x_pct=100.0; s.map_zoom_y_pct=100.0
         s.map_rotation_deg=0.0; s.map_flip_x=False; s.map_flip_y=False
         generate_global_uv(list(context.scene.objects),s)
-        self.report({'INFO'},"位置合わせを初期状態へ戻しました")
+        self.report({'INFO'},"Alignment reset to defaults")
         return {'FINISHED'}
 
 
 class CAMPUS3D_OT_clear_qgis_texture(Operator):
     bl_idname="campus3d.clear_qgis_texture"
-    bl_label="QGIS衛星画像を完全に外す"
+    bl_label="Remove QGIS Terrain Image Completely"
     def execute(self,context):
         s=context.scene.campus3d_settings
         objs=list(context.scene.objects)
         tc, slots, imgs = strip_qgis_terrain_materials(objs, s.purge_unused_qgis_images)
         if tc == 0:
-            self.report({'ERROR'},"Terrainを検出できません")
+            self.report({'ERROR'},"Terrain could not be detected")
             return {'CANCELLED'}
-        self.report({'INFO'},f"{tc} Terrain / {slots} material slot(s) を削除、画像 {imgs} 件削除")
+        self.report({'INFO'},f"{tc} Terrain / {slots} material slot(s) removed, images {imgs} removed")
         return {'FINISHED'}
 
 
 class CAMPUS3D_OT_reclassify(Operator):
     bl_idname="campus3d.reclassify"
-    bl_label="建物Collectionを再分類"
-    bl_description="OBJ名だけでなくMesh名・Material名なども使って建物4分類をやり直します"
+    bl_label="Reclassify Building Collections"
+    bl_description="Reclassify buildings into four categories using OBJ names, mesh names, material names, and related data."
 
     def execute(self,context):
         root=ensure_collection("Campus3D")
@@ -1151,14 +1406,14 @@ class CAMPUS3D_OT_reclassify(Operator):
             f"S-L:{counts.get('Building_Solid_Large',0)}",
             f"Other:{counts.get('Other',0)}",
         ])
-        self.report({'INFO'}, "再分類: " + msg)
+        self.report({'INFO'}, "Reclassified: " + msg)
         return {'FINISHED'}
 
 
 class CAMPUS3D_OT_water_add(Operator):
     bl_idname="campus3d.water_add"
-    bl_label="海面を追加 / 更新"
-    bl_description="Terrain全体を覆う水面を、指定した実標高とマージンで作成または更新します"
+    bl_label="Add / Update Water Plane"
+    bl_description="Create or update a water plane covering the Terrain using the specified real-world elevation and margin."
 
     def execute(self,context):
         try:
@@ -1170,31 +1425,31 @@ class CAMPUS3D_OT_water_add(Operator):
         denom, vscale, origin_z = campus3d_scale_info(context.scene)
         self.report(
             {'INFO'},
-            f"海面を更新: 標高 {context.scene.campus3d_settings.water_elevation_m:.2f} m "
+            f"Water plane updated: elevation {context.scene.campus3d_settings.water_elevation_m:.2f} m "
             f"→ Blender Z {z:.4f} m / 1:{int(denom)} / Z×{vscale:.2f}"
         )
         return {'FINISHED'}
 
 class CAMPUS3D_OT_water_delete(Operator):
     bl_idname="campus3d.water_delete"
-    bl_label="海面を削除"
-    bl_description="Campus3DのWaterオブジェクトを削除します"
+    bl_label="Delete Water Plane"
+    bl_description="Delete the Campus3D Water object."
 
     def execute(self,context):
         n = delete_water()
         if n:
-            self.report({'INFO'}, "海面を削除しました")
+            self.report({'INFO'}, "Water plane deleted")
         else:
-            self.report({'INFO'}, "削除する海面はありません")
+            self.report({'INFO'}, "No water plane to delete")
         return {'FINISHED'}
 
 class CAMPUS3D_OT_focus(Operator):
     bl_idname="campus3d.focus"
-    bl_label="Terrain全体を表示"
+    bl_label="Frame Entire Terrain"
     def execute(self,context):
         ts=terrain_objects(list(context.scene.objects))
         if not ts:
-            self.report({'ERROR'},"Terrainを検出できません")
+            self.report({'ERROR'},"Terrain could not be detected")
             return {'CANCELLED'}
         frame_objects(context,ts)
         return {'FINISHED'}
@@ -1229,26 +1484,26 @@ class CAMPUS3D_PT_panel(Panel):
         flow=brand.row()
         flow.scale_y=0.95
         flow.label(text="[A] QGIS  →  [B] Blender  →  GLB")
-        brand.label(text="← [A] GSI2Campus3D の続きです")
+        brand.label(text="← Continues from [A] GSI2Campus3D")
 
         b=layout.box()
-        b.label(text="[B-1] 推奨：GSI2Campus3Dパッケージ")
+        b.label(text="[B-1] Recommended: GSI2Campus3D Package")
         b.prop(s,"replace_existing_package")
         b.prop(s,"apply_package_texture")
         b.operator("campus3d.import_package",icon='IMPORT')
-        b.label(text="campus3d_manifest.json を選択")
-        b.label(text="分類・縮尺・原点・Z倍率はmanifestから自動取得")
-        b.label(text="※v0.3.2以降のQGISパッケージはTerrain画像を同梱可能")
+        b.label(text="Select campus3d_manifest.json")
+        b.label(text="Categories, scale, origin, and Z multiplier are read automatically from the manifest.")
+        b.label(text="QGIS packages from v0.3.2 onward can include a Terrain image.")
 
         b=layout.box()
-        b.label(text="[B-旧] 単一OBJの手動読込")
+        b.label(text="[B-Legacy] Manual Single-OBJ Import")
         b.prop(s,"real_width_m")
         b.prop(s,"real_height_m")
         b.prop(s,"target_scale")
         b.prop(s,"auto_calibrate")
 
         b=layout.box()
-        b.label(text="旧方式OBJオプション")
+        b.label(text="Legacy OBJ Options")
         b.prop(s,"auto_orient")
         b.prop(s,"geometry_clip")
         if s.geometry_clip: b.prop(s,"outside_margin")
@@ -1262,14 +1517,14 @@ class CAMPUS3D_PT_panel(Panel):
         b.operator("campus3d.import_obj",icon='IMPORT')
 
         b=layout.box()
-        b.label(text="[B-2] 地図をTerrainに貼る")
-        b.prop(s,"map_image_path",text="地図画像")
+        b.label(text="[B-2] Apply Map to Terrain")
+        b.prop(s,"map_image_path",text="Map image")
         b.operator("campus3d.clear_qgis_texture",icon='TRASH')
         b.operator("campus3d.apply_map",icon='IMAGE_DATA')
         b.operator("campus3d.show_guide",icon='UV')
 
         b.separator()
-        b.label(text="部分地図・位置ずれの調整")
+        b.label(text="Adjust partial maps or alignment offsets")
         b.prop(s,"map_live_update")
         b.prop(s,"map_shift_x_pct")
         b.prop(s,"map_shift_y_pct")
@@ -1281,13 +1536,13 @@ class CAMPUS3D_PT_panel(Panel):
         row.prop(s,"map_flip_y")
         b.prop(s,"map_opacity")
         if not s.map_live_update:
-            b.operator("campus3d.apply_map",text="調整を反映",icon='FILE_REFRESH')
+            b.operator("campus3d.apply_map",text="Apply Adjustment",icon='FILE_REFRESH')
         else:
-            b.label(text="数値変更を約0.05秒後に自動反映")
+            b.label(text="Numeric changes are applied automatically after about 0.05 seconds.")
         b.operator("campus3d.reset_map",icon='LOOP_BACK')
 
         b=layout.box()
-        b.label(text="[B-3] 海面")
+        b.label(text="[B-3] Water Plane")
         b.prop(s,"water_elevation_m")
         b.prop(s,"water_margin_m")
         b.prop(s,"water_auto_material")
@@ -1298,26 +1553,26 @@ class CAMPUS3D_PT_panel(Panel):
             denom=float(context.scene.get("campus3d_scale_denominator",0) or 0)
             vz=float(context.scene.get("campus3d_vertical_scale",1.0) or 1.0)
             if denom>0:
-                b.label(text=f"manifest基準: 1:{int(denom)} / Z×{vz:.2f}")
+                b.label(text=f"Manifest scale: 1:{int(denom)} / Z×{vz:.2f}")
         except Exception:
             pass
 
         b=layout.box()
-        b.label(text="[B-4] 表示補助")
+        b.label(text="[B-4] Display Tools")
         b.operator("campus3d.focus",icon='VIEWZOOM')
-        b.label(text="UV Editing / Shadingを開かなくてもOK")
+        b.label(text="No need to open UV Editing or Shading.")
 
         info=layout.box()
         info.label(text="Campus3D Workflow [B] | v0.4.6")
-        info.label(text="・パッケージTerrain画像は自動貼付ONが標準")
-        info.label(text="・旧方式OBJだけ既存マテリアル削除を選択可")
-        info.label(text="・6ファイルをファイル単位で確実に4分類")
-        info.label(text="・地図位置調整はリアルタイム反映対応")
-        info.label(text="・海面を実標高0m基準でワンクリック生成")
+        info.label(text="• Automatic package Terrain image application is enabled by default.")
+        info.label(text="• Existing material removal is optional for legacy OBJ imports.")
+        info.label(text="• Six files are reliably organized into four building categories.")
+        info.label(text="• Map alignment supports live updates.")
+        info.label(text="• Create a water plane at real-world elevation 0 m with one click.")
         info.label(text="・[A] QGIS → [B] Blender → GLB → CampusMint")
         info.label(text="Powered by IINO Lab.")
-        info.label(text="同範囲画像 → そのまま貼付")
-        info.label(text="部分画像 → 移動/倍率/回転で手動調整")
+        info.label(text="Same-extent image → apply directly")
+        info.label(text="Partial image → adjust shift, scale, and rotation manually")
 
 classes=(
     Campus3DSettings,
@@ -1335,11 +1590,19 @@ classes=(
 )
 
 def register():
+    try:
+        bpy.app.translations.register(__name__, TRANSLATIONS)
+    except ValueError:
+        pass
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.Scene.campus3d_settings=PointerProperty(type=Campus3DSettings)
 
 def unregister():
+    try:
+        bpy.app.translations.unregister(__name__)
+    except ValueError:
+        pass
     del bpy.types.Scene.campus3d_settings
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)

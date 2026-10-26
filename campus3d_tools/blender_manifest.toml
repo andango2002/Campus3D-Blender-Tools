@@ -1,14 +1,14 @@
 schema_version = "1.0.0"
 
 id = "campus3d_tools"
-version = "0.4.7"
+version = "0.4.9"
 name = "Campus3D Tools"
 tagline = "Import and prepare Campus3D regional models for GLB workflows"
 maintainer = "Akinaru Iino"
 type = "add-on"
 
 website = "https://github.com/andango2002/Campus3D-Blender-Tools"
-tags = ["Import-Export", "3D View", "Pipeline"]
+tags = ["Import-Export"]
 
 blender_version_min = "4.5.0"
 
