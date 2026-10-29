@@ -2,7 +2,7 @@
 bl_info = {
     "name": "Campus3D Tools",
     "author": "Akinaru Iino",
-    "version": (0, 4, 10),
+    "version": (0, 4, 18),
     "blender": (4, 5, 0),
     "location": "View3D > Sidebar > Campus3D",
     "description": "Campus3D Workflow [B]: import GSI2Campus3D packages, finish scenes and prepare GLB for CampusMint",
@@ -15,108 +15,9 @@ import math
 import os
 import json
 from mathutils import Vector
-from bpy.props import BoolProperty, FloatProperty, PointerProperty, StringProperty, EnumProperty
+from bpy.props import BoolProperty, FloatProperty, IntProperty, PointerProperty, StringProperty, EnumProperty
 from bpy.types import Operator, Panel, PropertyGroup
 from bpy_extras.io_utils import ImportHelper
-
-# Optional Japanese UI translations; English remains the source/default language.
-_TRANSLATION_CONTEXT = bpy.app.translations.contexts.default
-TRANSLATIONS = {
-    "ja_JP": {
-        (_TRANSLATION_CONTEXT, 'Terrain could not be detected'): 'Terrainを検出できません',
-        (_TRANSLATION_CONTEXT, 'Correct QGIS axes for Blender'): 'QGIS軸をBlenderへ補正',
-        (_TRANSLATION_CONTEXT, 'QGIS DEM real width X (m)'): 'QGIS DEM 実幅 X (m)',
-        (_TRANSLATION_CONTEXT, 'QGIS DEM real height Y (m)'): 'QGIS DEM 実幅 Y (m)',
-        (_TRANSLATION_CONTEXT, 'Target scale'): '目標縮尺',
-        (_TRANSLATION_CONTEXT, '1:1000 (recommended for exercises)'): '1:1000（演習標準）',
-        (_TRANSLATION_CONTEXT, '1:1 (real size)'): '1:1（実寸）',
-        (_TRANSLATION_CONTEXT, 'Auto-calibrate scale from real dimensions'): '実寸幅から縮尺を自動校正',
-        (_TRANSLATION_CONTEXT, 'Remove geometry outside Terrain'): 'Terrain外の飛び地を掃除',
-        (_TRANSLATION_CONTEXT, 'Cleanup margin'): '掃除マージン',
-        (_TRANSLATION_CONTEXT, 'Set origin to each geometry'): '原点を各ジオメトリへ',
-        (_TRANSLATION_CONTEXT, 'Move Terrain center to world origin'): 'Terrain中心をワールド原点へ',
-        (_TRANSLATION_CONTEXT, 'Organize collections'): 'Collection整理',
-        (_TRANSLATION_CONTEXT, 'Frame Terrain after import'): '読込後にTerrainを表示',
-        (_TRANSLATION_CONTEXT, 'Map image'): '地図画像',
-        (_TRANSLATION_CONTEXT, 'Horizontal shift (%)'): '左右移動 (%)',
-        (_TRANSLATION_CONTEXT, 'Vertical shift (%)'): '上下移動 (%)',
-        (_TRANSLATION_CONTEXT, 'Horizontal scale (%)'): '横倍率 (%)',
-        (_TRANSLATION_CONTEXT, 'Vertical scale (%)'): '縦倍率 (%)',
-        (_TRANSLATION_CONTEXT, 'Rotation (°)'): '回転 (°)',
-        (_TRANSLATION_CONTEXT, 'Flip horizontally'): '左右反転',
-        (_TRANSLATION_CONTEXT, 'Flip vertically'): '上下反転',
-        (_TRANSLATION_CONTEXT, 'Opacity'): '不透明度',
-        (_TRANSLATION_CONTEXT, 'Live update'): 'リアルタイム反映',
-        (_TRANSLATION_CONTEXT, 'Remove existing Terrain materials for legacy OBJ'): '旧方式OBJの既存Terrainマテリアルを削除',
-        (_TRANSLATION_CONTEXT, 'Remove unused legacy image data'): '未使用の旧画像データも削除',
-        (_TRANSLATION_CONTEXT, 'Replace existing Campus3D objects'): '既存Campus3Dを置き換える',
-        (_TRANSLATION_CONTEXT, 'Apply package Terrain image automatically'): 'パッケージのTerrain画像を自動貼付',
-        (_TRANSLATION_CONTEXT, 'Water elevation (m)'): '海面標高 (m)',
-        (_TRANSLATION_CONTEXT, 'Real-world elevation. For Campus3D packages, it is converted automatically to Blender Z using the manifest elevation origin and scale.'): '実世界の標高。Campus3Dパッケージではmanifestの標高原点と縮尺からBlender Zへ自動変換します',
-        (_TRANSLATION_CONTEXT, 'Water margin (m)'): '広がりマージン (m)',
-        (_TRANSLATION_CONTEXT, 'Real-world distance to extend the water plane beyond the Terrain boundary.'): 'Terrain外周から水面をさらに広げる実世界距離',
-        (_TRANSLATION_CONTEXT, 'Create water material automatically'): '海面マテリアルを自動作成',
-        (_TRANSLATION_CONTEXT, 'Import Campus3D Package'): 'Campus3Dパッケージを一括読込',
-        (_TRANSLATION_CONTEXT, 'Import Terrain, roads, and four building categories separately from a campus3d_manifest.json created by GSI2Campus3D.'): 'GSI2Campus3Dが作ったcampus3d_manifest.jsonからTerrain/道路/建物4分類を別々に読み込みます',
-        (_TRANSLATION_CONTEXT, 'Could not read manifest: '): 'manifestを読めません: ',
-        (_TRANSLATION_CONTEXT, 'This is not a Campus3D Blender Package manifest'): 'Campus3D Blender Packageのmanifestではありません',
-        (_TRANSLATION_CONTEXT, 'Required OBJ files were not found: '): '必要OBJが見つかりません: ',
-        (_TRANSLATION_CONTEXT, 'This is a legacy Campus3D package. If the Z multiplier is not 1, building heights may also be exaggerated. Re-export the package with GSI2Campus3D v0.4.18 or later.'): '旧形式Campus3Dパッケージです。Z倍率が1以外の場合、建物高さも誇張されている可能性があります。GSI2Campus3D v0.4.18以降でパッケージを再出力してください。',
-        (_TRANSLATION_CONTEXT, ' / Terrain image:'): ' / Terrain画像:',
-        (_TRANSLATION_CONTEXT, 'Campus3D package import complete 1:'): 'Campus3Dパッケージ読込完了 1:',
-        (_TRANSLATION_CONTEXT, 'None/OFF'): 'なし/OFF',
-        (_TRANSLATION_CONTEXT, 'Import Campus3D OBJ'): 'Campus3D OBJを読み込む',
-        (_TRANSLATION_CONTEXT, 'No newly imported objects were detected'): '新規オブジェクトを検出できません',
-        (_TRANSLATION_CONTEXT, ' merged / Terrain '): ' 結合 / Terrain ',
-        (_TRANSLATION_CONTEXT, 'm / UV ready'): 'm / UV準備済み',
-        (_TRANSLATION_CONTEXT, 'Import complete / OBJ names '): '読込完了 / OBJ名 ',
-        (_TRANSLATION_CONTEXT, 'Apply / Update Map'): '地図を貼る / 更新',
-        (_TRANSLATION_CONTEXT, 'Select a map image'): '地図画像を選択してください',
-        (_TRANSLATION_CONTEXT, 'Could not read image: '): '画像を読めません: ',
-        (_TRANSLATION_CONTEXT, ' Terrain object(s) updated with map image'): ' Terrain object(s) に地図を貼りました',
-        (_TRANSLATION_CONTEXT, 'Show Alignment Guide'): '位置合わせガイドを表示',
-        (_TRANSLATION_CONTEXT, 'Displayed a 10×10 alignment guide'): '10×10ガイドを表示しました',
-        (_TRANSLATION_CONTEXT, 'Reset Alignment'): '位置合わせをリセット',
-        (_TRANSLATION_CONTEXT, 'Alignment reset to defaults'): '位置合わせを初期状態へ戻しました',
-        (_TRANSLATION_CONTEXT, 'Remove QGIS Terrain Image Completely'): 'QGIS衛星画像を完全に外す',
-        (_TRANSLATION_CONTEXT, ' material slot(s) removed, images '): ' material slot(s) を削除、画像 ',
-        (_TRANSLATION_CONTEXT, ' removed'): ' 件削除',
-        (_TRANSLATION_CONTEXT, 'Reclassify Building Collections'): '建物Collectionを再分類',
-        (_TRANSLATION_CONTEXT, 'Reclassify buildings into four categories using OBJ names, mesh names, material names, and related data.'): 'OBJ名だけでなくMesh名・Material名なども使って建物4分類をやり直します',
-        (_TRANSLATION_CONTEXT, 'Reclassified: '): '再分類: ',
-        (_TRANSLATION_CONTEXT, 'Add / Update Water Plane'): '海面を追加 / 更新',
-        (_TRANSLATION_CONTEXT, 'Create or update a water plane covering the Terrain using the specified real-world elevation and margin.'): 'Terrain全体を覆う水面を、指定した実標高とマージンで作成または更新します',
-        (_TRANSLATION_CONTEXT, 'Water plane updated: elevation '): '海面を更新: 標高 ',
-        (_TRANSLATION_CONTEXT, 'Delete Water Plane'): '海面を削除',
-        (_TRANSLATION_CONTEXT, 'Delete the Campus3D Water object.'): 'Campus3DのWaterオブジェクトを削除します',
-        (_TRANSLATION_CONTEXT, 'Water plane deleted'): '海面を削除しました',
-        (_TRANSLATION_CONTEXT, 'No water plane to delete'): '削除する海面はありません',
-        (_TRANSLATION_CONTEXT, 'Frame Entire Terrain'): 'Terrain全体を表示',
-        (_TRANSLATION_CONTEXT, '← Continues from [A] GSI2Campus3D'): '← [A] GSI2Campus3D の続きです',
-        (_TRANSLATION_CONTEXT, '[B-1] Recommended: GSI2Campus3D Package'): '[B-1] 推奨：GSI2Campus3Dパッケージ',
-        (_TRANSLATION_CONTEXT, 'Select campus3d_manifest.json'): 'campus3d_manifest.json を選択',
-        (_TRANSLATION_CONTEXT, 'Categories, scale, origin, and Z multiplier are read automatically from the manifest.'): '分類・縮尺・原点・Z倍率はmanifestから自動取得',
-        (_TRANSLATION_CONTEXT, 'QGIS packages from v0.3.2 onward can include a Terrain image.'): '※v0.3.2以降のQGISパッケージはTerrain画像を同梱可能',
-        (_TRANSLATION_CONTEXT, '[B-Legacy] Manual Single-OBJ Import'): '[B-旧] 単一OBJの手動読込',
-        (_TRANSLATION_CONTEXT, 'Legacy OBJ Options'): '旧方式OBJオプション',
-        (_TRANSLATION_CONTEXT, '[B-2] Apply Map to Terrain'): '[B-2] 地図をTerrainに貼る',
-        (_TRANSLATION_CONTEXT, 'Adjust partial maps or alignment offsets'): '部分地図・位置ずれの調整',
-        (_TRANSLATION_CONTEXT, 'Apply Adjustment'): '調整を反映',
-        (_TRANSLATION_CONTEXT, 'Numeric changes are applied automatically after about 0.05 seconds.'): '数値変更を約0.05秒後に自動反映',
-        (_TRANSLATION_CONTEXT, '[B-3] Water Plane'): '[B-3] 海面',
-        (_TRANSLATION_CONTEXT, 'Manifest scale: 1:'): 'manifest基準: 1:',
-        (_TRANSLATION_CONTEXT, '[B-4] Display Tools'): '[B-4] 表示補助',
-        (_TRANSLATION_CONTEXT, 'No need to open UV Editing or Shading.'): 'UV Editing / Shadingを開かなくてもOK',
-        (_TRANSLATION_CONTEXT, '• Automatic package Terrain image application is enabled by default.'): '・パッケージTerrain画像は自動貼付ONが標準',
-        (_TRANSLATION_CONTEXT, '• Existing material removal is optional for legacy OBJ imports.'): '・旧方式OBJだけ既存マテリアル削除を選択可',
-        (_TRANSLATION_CONTEXT, '• Six files are reliably organized into four building categories.'): '・6ファイルをファイル単位で確実に4分類',
-        (_TRANSLATION_CONTEXT, '• Map alignment supports live updates.'): '・地図位置調整はリアルタイム反映対応',
-        (_TRANSLATION_CONTEXT, '• Create a water plane at real-world elevation 0 m with one click.'): '・海面を実標高0m基準でワンクリック生成',
-        (_TRANSLATION_CONTEXT, 'Same-extent image → apply directly'): '同範囲画像 → そのまま貼付',
-        (_TRANSLATION_CONTEXT, 'Partial image → adjust shift, scale, and rotation manually'): '部分画像 → 移動/倍率/回転で手動調整',
-    },
-}
-
 
 CATEGORY_MAP = [
     ("Terrain", ("terrain", "dem")),
@@ -928,6 +829,10 @@ class Campus3DSettings(PropertyGroup):
     purge_unused_qgis_images: BoolProperty(name="Remove unused legacy image data", default=False)
     replace_existing_package: BoolProperty(name="Replace existing Campus3D objects", default=True)
     apply_package_texture: BoolProperty(name="Apply package Terrain image automatically", default=True)
+    remove_factory_cube: BoolProperty(
+        name="Remove untouched startup Cube", default=True,
+        description="Remove only the original Blender startup Cube on successful package import; never remove an edited or saved-project Cube"
+    )
     water_elevation_m: FloatProperty(
         name="Water elevation (m)",
         description="Real-world elevation. For Campus3D packages, it is converted automatically to Blender Z using the manifest elevation origin and scale.",
@@ -1108,57 +1013,373 @@ def load_embedded_manifest(scene):
         return None
 
 
+
+# ------------------------------------------------------------------------
+# v0.4.13: conservative identification of Blender's untouched startup cube.
+# Do NOT decide based only on object name: a user's edited Cube must survive.
+# Called before importing, and removal only after the full import succeeds.
+# ------------------------------------------------------------------------
+
+def _close_numbers(actual, expected, tol=0.005):
+    try:
+        return len(actual) == len(expected) and all(
+            abs(float(a)-float(b)) <= tol for a,b in zip(actual, expected)
+        )
+    except (TypeError, ValueError):
+        return False
+
+
+def _inspect_startup_cube(scene):
+    """Return (factory Cube, reason). A dirty *file* is not proof Cube changed.
+
+    `bpy.data.is_dirty` becomes true for benign operations (for example opening
+    an importer). Instead examine the actual scene, default object transforms,
+    factory mesh, and material. Prefer false negatives to deleting user edits.
+    The reason is surfaced after import when Cube is deliberately retained.
+    """
+    def skip(why):
+        return None, why
+    try:
+        if bpy.data.filepath:
+            return skip('The .blend file has already been saved')
+        if len(bpy.data.scenes) != 1 or scene.name != 'Scene':
+            return skip('The project is not a single default Scene')
+        if {o.name for o in scene.objects} != {'Cube', 'Camera', 'Light'}:
+            return skip('The scene contains objects other than the default Cube, Camera, and Light')
+        if len(scene.collection.children) != 1 or scene.collection.children[0].name != 'Collection':
+            return skip('The default collection structure was changed')
+        cube = scene.objects.get('Cube')
+        cam = scene.objects.get('Camera')
+        light = scene.objects.get('Light')
+        if cube is None or cube.type != 'MESH' or cam is None or cam.type != 'CAMERA' or light is None or light.type != 'LIGHT':
+            return skip('Default startup object types do not match')
+        if cube.data is None or cube.data.name != 'Cube' or cube.data.users != 1:
+            return skip('Cube mesh was modified or is shared')
+        if cube.parent is not None or cube.hide_viewport or cube.hide_render or cube.hide_get():
+            return skip('Cube parenting or visibility was changed')
+        # Camera/Light as well as Cube must retain Blender's factory positions.
+        expected_positions = (
+            (cube, (0, 0, 0)),
+            (cam, (7.35889, -6.92579, 4.95831)),
+            (light, (4.07625, 1.00545, 5.90386)),
+        )
+        for obj, position in expected_positions:
+            if not _close_numbers(obj.location, position, 0.01):
+                return skip(obj.name + ' position differs from startup defaults')
+            if not _close_numbers(obj.scale, (1, 1, 1)):
+                return skip(obj.name + ' scale differs from startup defaults')
+            if obj.animation_data or len(obj.constraints) or obj.library or obj.override_library:
+                return skip(obj.name + ' has constraints, animation, or library links')
+        if not _close_numbers(cube.rotation_euler, (0, 0, 0)) or cube.rotation_mode != 'XYZ':
+            return skip('Cube rotation differs from startup defaults')
+        if not _close_numbers(cam.rotation_euler, (1.10932, 0, 0.814929), 0.02):
+            return skip('Camera rotation differs from startup defaults')
+        if not _close_numbers(light.rotation_euler, (0.650328, 0.055217, 1.866391), 0.02):
+            return skip('Light rotation differs from startup defaults')
+        if len(cube.modifiers) or len(cube.vertex_groups) or cube.data.shape_keys is not None:
+            return skip('Cube has modifiers, vertex groups, or shape keys')
+        mesh = cube.data
+        if len(mesh.vertices) != 8 or len(mesh.edges) != 12 or len(mesh.polygons) != 6:
+            return skip('Cube mesh vertex, edge, or face count was changed')
+        if any(len(p.vertices) != 4 for p in mesh.polygons):
+            return skip('Cube face topology was changed')
+        if any(not _close_numbers(tuple(abs(float(c)) for c in v.co), (1, 1, 1)) for v in mesh.vertices):
+            return skip('Cube vertex positions were changed')
+        if len(cube.keys()) != 0:
+            return skip('Cube has custom properties')
+        if len(mesh.materials) != 1:
+            return skip('Cube material slot count was changed')
+        material = mesh.materials[0]
+        if material is None or material.name != 'Material' or not material.use_nodes:
+            return skip('Cube material differs from the startup default')
+        nt = material.node_tree
+        if nt is None or len(nt.nodes) != 2 or len(nt.links) != 1:
+            return skip('Cube material nodes were changed')
+        shader = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+        if shader is None:
+            return skip('Cube shader was changed')
+        color = shader.inputs.get('Base Color')
+        metal = shader.inputs.get('Metallic')
+        rough = shader.inputs.get('Roughness')
+        if color is None or metal is None or rough is None:
+            return skip('Cube shader settings differ from startup defaults')
+        if not _close_numbers(color.default_value, (0.8, 0.8, 0.8, 1.0)):
+            return skip('Cube base color differs from startup defaults')
+        if abs(float(metal.default_value)) > 0.0001 or abs(float(rough.default_value) - 0.5) > 0.0001:
+            return skip('Cube material parameters differ from startup defaults')
+        return cube, 'Confirmed untouched startup Cube'
+    except Exception as exc:
+        return skip('Startup Cube safety check failed: ' + str(exc)[:90])
+
+
+def _untouched_startup_cube(scene):
+    """Backward compatible helper for the importer and existing extensions."""
+    return _inspect_startup_cube(scene)[0]
+
+
+def _redraw_campus3d_panels(wm):
+    try:
+        for window in wm.windows:
+            for area in window.screen.areas:
+                if area.type in {'VIEW_3D','STATUSBAR'}:
+                    area.tag_redraw()
+    except Exception:
+        pass
+
+# v0.4.14: a Blender *application* timer is used instead of a modal handler.
+# ImportHelper opens a transient file browser. Adding a modal handler from its
+# execute() is not reliable because that browser closes immediately afterwards.
+# The app timer is independent of which editor receives keyboard/mouse events.
+_CAMPUS3D_IMPORT_JOB = None
+
+
+def _campus3d_import_context(job):
+    """Find a live Blender 3D view after ImportHelper's file browser closes."""
+    wm = bpy.context.window_manager
+    for window in wm.windows:
+        if window.scene != job.scene:
+            continue
+        for area in window.screen.areas:
+            if area.type == 'VIEW_3D':
+                region = next((r for r in area.regions if r.type == 'WINDOW'), None)
+                if region:
+                    return window, area, region
+    return None
+
+
+def _campus3d_import_timer():
+    """One import stage per timer call, always on Blender's main thread."""
+    global _CAMPUS3D_IMPORT_JOB
+    job = _CAMPUS3D_IMPORT_JOB
+    if job is None:
+        return None
+    try:
+        ctx = _campus3d_import_context(job)
+        if ctx is None:
+            job.waiting_for_view += 1
+            if job.waiting_for_view > 40:  # 10 seconds, not an endless 0% state
+                raise RuntimeError('Could not return to the 3D view after the file browser closed.')
+            return 0.25
+        win, area, region = ctx
+        with bpy.context.temp_override(window=win, area=area, region=region,
+                                      scene=job.scene, view_layer=win.view_layer):
+            return job.tick(bpy.context)
+    except Exception as exc:
+        job.abort('Import failed: ' + str(exc))
+        return None
+
+
+class _Campus3DImportJob:
+    """Pure Python state that survives returning from the file-browser operator.
+
+    Never retain a Blender Operator RNA instance after execute() returns.
+    """
+    def __init__(self, context, path, manifest, files, base, tasks):
+        self.scene = context.scene
+        self.wm = context.window_manager
+        self.filepath = path
+        self._manifest = manifest
+        self._files = files
+        self._base = base
+        self._tasks = tasks
+        self._cube_to_remove = None
+        self._cube_skip_reason = ''
+        self._cube_outcome = ''
+        if self.scene.campus3d_settings.remove_factory_cube:
+            self._cube_to_remove, self._cube_skip_reason = _inspect_startup_cube(self.scene)
+            if self._cube_to_remove is None:
+                print('[Campus3D] Startup Cube retained: ' + self._cube_skip_reason)
+        self._counts = {}
+        self._all_imported = []
+        self._step = 0
+        self._phase = 'prepare'
+        self.waiting_for_view = 0
+        self.cancel_requested = False
+        self._progress_started = False
+        self._finished = False
+
+    def report(self, types, message):
+        # An ImportHelper operator can no longer report after it has returned.
+        print('[Campus3D ' + ','.join(sorted(types)) + '] ' + str(message))
+
+    def progress(self, percent, label):
+        self.wm.campus3d_import_percent = max(0, min(100, int(percent)))
+        self.wm.campus3d_import_stage = label
+        if self._progress_started:
+            try: self.wm.progress_update(self.wm.campus3d_import_percent)
+            except Exception: pass
+        _redraw_campus3d_panels(self.wm)
+
+    def begin(self):
+        self.wm.campus3d_import_running = True
+        self.wm.campus3d_import_percent = 0
+        self.wm.progress_begin(0, 100)
+        self._progress_started = True
+        self.progress(0, 'Starting: returning from the file browser')
+
+    def complete(self, ok=True):
+        global _CAMPUS3D_IMPORT_JOB
+        if self._finished:
+            return
+        self._finished = True
+        if self._progress_started:
+            try: self.wm.progress_end()
+            except Exception: pass
+            self._progress_started = False
+        self.wm.campus3d_import_running = False
+        if _CAMPUS3D_IMPORT_JOB is self:
+            _CAMPUS3D_IMPORT_JOB = None
+        _redraw_campus3d_panels(self.wm)
+
+    def abort(self, message):
+        self.progress(self.wm.campus3d_import_percent, message)
+        self.report({'ERROR'}, message)
+        self.complete(ok=False)
+        # A non-blocking message is displayed after Blender leaves the importer.
+        try:
+            def draw(popup, context):
+                popup.layout.label(text=str(message)[:180], icon='ERROR')
+            self.wm.popup_menu(draw, title='Campus3D Import', icon='ERROR')
+        except Exception: pass
+
+    def tick(self, context):
+        if self.cancel_requested:
+            self.abort('Campus3D import canceled (already imported objects remain)')
+            return None
+        if self._phase == 'prepare':
+            s=self.scene.campus3d_settings
+            if s.replace_existing_package:
+                clear_campus3d_scene()
+            root=ensure_collection('Campus3D')
+            self._categories={name:ensure_collection(name,root) for name,_ in CATEGORY_MAP}
+            self._categories['Other']=ensure_collection('Other',root)
+            self._phase='announce_obj'
+            self.progress(5,'Ready: importing OBJ files sequentially')
+            return 0.12
+        if self._phase == 'announce_obj':
+            category, _ = self._tasks[self._step]
+            self.progress(5+int(self._step*75/len(self._tasks)),
+                          f'Importing: {category} ({self._step+1}/{len(self._tasks)})')
+            self._phase='import_obj'
+            return 0.12  # let the UI paint before the next large OBJ read
+        if self._phase == 'import_obj':
+            category, filepath=self._tasks[self._step]
+            imported=import_obj_file(filepath)
+            self._counts[category]=len(imported)
+            for index, obj in enumerate(imported):
+                obj['campus3d_package_category']=category
+                obj.name=category if len(imported)==1 else f'{category}_{index+1:03d}'
+                move_object_to_collection(obj,self._categories[category])
+            self._all_imported.extend(imported)
+            self._step += 1
+            self.progress(5+int(self._step*75/len(self._tasks)),
+                          f'Loaded: {category} ({self._step}/{len(self._tasks)})')
+            self._phase = 'announce_obj' if self._step<len(self._tasks) else 'announce_finish'
+            return 0.12
+        if self._phase == 'announce_finish':
+            self.progress(85,'Finalizing UVs, Terrain image, and coordinates')
+            self._phase='finish'
+            return 0.12
+        if self._phase == 'finish':
+            # Import/layout/materials are complete here, but Blender may still
+            # spend time updating the dependency graph and drawing the viewport.
+            # Do not immediately show a misleading "100% = UI ready" signal.
+            CAMPUS3D_OT_import_package._finish_import(self, context)
+            self.progress(96, 'Model loaded: preparing the 3D viewport...')
+            self._phase = 'display_update'
+            return 0.25
+        if self._phase == 'display_update':
+            # Yield a UI iteration between the geometry work and final status.
+            # The redraw is intentionally only requested, not forced: blocking
+            # redraw operators here can make large meshes appear frozen again.
+            self.progress(98, 'Updating 3D viewport; Blender may remain busy...')
+            self._phase = 'display_complete'
+            return 0.5
+        if self._phase == 'display_complete':
+            # This confirms the import pipeline, NOT that the GPU finished all
+            # viewport drawing. Keep the guidance visible after 100% as well.
+            outcome = getattr(self, '_cube_outcome', '')
+            self.progress(100, 'Import complete (100%)' + (' / ' + outcome if outcome else ''))
+            self.complete(ok=True)
+            return None
+        raise RuntimeError('Unknown import phase: ' + str(self._phase))
+
+
+class CAMPUS3D_OT_cancel_package(Operator):
+    bl_idname='campus3d.cancel_package_import'
+    bl_label='Cancel Campus3D Import'
+    bl_description='Stop Campus3D import after the currently loading OBJ finishes'
+
+    def execute(self, context):
+        if _CAMPUS3D_IMPORT_JOB is not None:
+            _CAMPUS3D_IMPORT_JOB.cancel_requested = True
+            self.report({'INFO'}, 'Cancel requested; the current OBJ will finish before stopping.')
+        return {'FINISHED'}
+
+
 class CAMPUS3D_OT_import_package(Operator, ImportHelper):
     bl_idname="campus3d.import_package"
     bl_label="Import Campus3D Package"
     bl_description="Import Terrain, roads, and four building categories separately from a campus3d_manifest.json created by GSI2Campus3D."
     filename_ext=".json"
-    filter_glob:StringProperty(default="*.json", options={'HIDDEN'})
+    filter_glob:StringProperty(default="*manifest*.json", options={'HIDDEN'})
 
-    def execute(self,context):
-        s=context.scene.campus3d_settings
+    def execute(self, context):
+        global _CAMPUS3D_IMPORT_JOB
+        wm=context.window_manager
+        if _CAMPUS3D_IMPORT_JOB is not None or wm.campus3d_import_running:
+            self.report({'WARNING'}, 'A Campus3D package is already being imported.')
+            return {'CANCELLED'}
+        chosen_path=os.path.abspath(bpy.path.abspath(self.filepath))
+        if os.path.basename(chosen_path).lower() == 'campus3d_metadata.json':
+            sibling=os.path.join(os.path.dirname(chosen_path),'campus3d_manifest.json')
+            if os.path.isfile(sibling):
+                chosen_path=sibling
+                self.report({'INFO'},'Using campus3d_manifest.json from the same folder.')
         try:
-            with open(self.filepath,'r',encoding='utf-8') as fh:
+            with open(chosen_path,'r',encoding='utf-8') as fh:
                 manifest=json.load(fh)
-                store_manifest_in_scene(context.scene, manifest, self.filepath)
-        except Exception as e:
-            self.report({'ERROR'},f"Could not read manifest: {e}")
+            if not isinstance(manifest,dict) or manifest.get('format') != 'Campus3D Blender Package':
+                raise ValueError('Please select campus3d_manifest.json.')
+            base=os.path.dirname(chosen_path)
+            files=manifest.get('files',{})
+            if not isinstance(files,dict):
+                raise ValueError('Invalid files section in manifest.')
+            required=['Terrain','Building_Normal_Small','Building_Normal_Large','Building_Solid_Small','Building_Solid_Large']
+            missing=[k for k in required if k not in files or not os.path.isfile(os.path.join(base,files[k]))]
+            if missing:
+                raise FileNotFoundError('Missing required OBJ files: '+', '.join(missing))
+            order=['Terrain','Roads','Building_Normal_Small','Building_Normal_Large','Building_Solid_Small','Building_Solid_Large']
+            tasks=[]
+            for category in order:
+                rel=files.get(category)
+                if not rel:
+                    continue
+                fp=os.path.abspath(os.path.join(base,rel))
+                if os.path.isfile(fp):
+                    tasks.append((category,fp))
+            if not tasks:
+                raise ValueError('No OBJ files available to import.')
+            job=_Campus3DImportJob(context, chosen_path, manifest, files, base, tasks)
+            _CAMPUS3D_IMPORT_JOB = job
+            job.begin()
+            # Independent of Blender's transient file browser/modal events.
+            bpy.app.timers.register(_campus3d_import_timer, first_interval=0.2)
+        except Exception as exc:
+            if _CAMPUS3D_IMPORT_JOB is not None:
+                _CAMPUS3D_IMPORT_JOB.abort('Could not start import: '+str(exc))
+            self.report({'ERROR'}, f'Campus3D package import: {exc}')
             return {'CANCELLED'}
-        if manifest.get('format')!='Campus3D Blender Package':
-            self.report({'ERROR'},"This is not a Campus3D Blender Package manifest")
-            return {'CANCELLED'}
-        base=os.path.dirname(self.filepath)
-        files=manifest.get('files',{})
-        required=['Terrain','Building_Normal_Small','Building_Normal_Large','Building_Solid_Small','Building_Solid_Large']
-        missing=[k for k in required if k not in files or not os.path.exists(os.path.join(base,files[k]))]
-        if missing:
-            self.report({'ERROR'},"Required OBJ files were not found: "+", ".join(missing))
-            return {'CANCELLED'}
+        self.report({'INFO'},'Campus3D import started. Progress appears in the Campus3D sidebar.')
+        return {'FINISHED'}
 
-        if s.replace_existing_package:
-            clear_campus3d_scene()
-
-        root=ensure_collection('Campus3D')
-        cats={name:ensure_collection(name,root) for name,_ in CATEGORY_MAP}
-        cats['Other']=ensure_collection('Other',root)
-        order=['Terrain','Roads','Building_Normal_Small','Building_Normal_Large','Building_Solid_Small','Building_Solid_Large']
-        counts={}
-        all_imported=[]
-        for cat in order:
-            rel=files.get(cat)
-            if not rel: continue
-            fp=os.path.join(base,rel)
-            if not os.path.exists(fp): continue
-            imported=import_obj_file(fp)
-            counts[cat]=len(imported)
-            for i,o in enumerate(imported):
-                o['campus3d_package_category']=cat
-                if len(imported)==1:
-                    o.name=cat
-                else:
-                    o.name=f"{cat}_{i+1:03d}"
-                move_object_to_collection(o,cats[cat])
-            all_imported.extend(imported)
+    def _finish_import(self,context):
+        manifest=self._manifest
+        files=self._files
+        base=self._base
+        s=context.scene.campus3d_settings
+        all_imported=self._all_imported
+        counts=self._counts
 
         # Manifest is authoritative: no size guessing or layer-name inference.
         real=manifest.get('real_size_m',{})
@@ -1173,20 +1394,19 @@ class CAMPUS3D_OT_import_package(Operator, ImportHelper):
         context.scene['campus3d_vertical_scale']=float(manifest.get('vertical_scale',1.0) or 1.0)
         context.scene['campus3d_origin_json']=json.dumps(manifest.get('origin',{}),ensure_ascii=False)
         context.scene['campus3d_building_vertical_mode']=manifest.get('building_vertical_mode','legacy_all_z_scaled')
+        store_manifest_in_scene(context.scene, manifest, self.filepath)
 
         # Package Terrain texture is aligned to the full DEM extent.
-        # Reset prior partial-map adjustments before generating package UVs.
         s.map_shift_x_pct=0.0; s.map_shift_y_pct=0.0
         s.map_zoom_x_pct=100.0; s.map_zoom_y_pct=100.0
         s.map_rotation_deg=0.0; s.map_flip_x=False; s.map_flip_y=False
-
         generate_global_uv(all_imported,s)
 
         tex_rel=files.get('Terrain_Texture')
         tex_applied=False
         if s.apply_package_texture and tex_rel:
             tex_path=os.path.join(base,tex_rel)
-            if os.path.exists(tex_path):
+            if os.path.isfile(tex_path):
                 try:
                     img=load_or_reload_image(tex_path)
                     mat=ensure_map_material(img,1.0)
@@ -1202,17 +1422,34 @@ class CAMPUS3D_OT_import_package(Operator, ImportHelper):
         if s.auto_frame:
             frame_objects(context,terrain_objects(all_imported))
 
-        summary=' / '.join(f"{k}:{v}" for k,v in counts.items())
+        # Delete *only* the original untouched startup Cube, detected before
+        # the import. Never use `obj in bpy_prop_collection`: Blender expects
+        # a string key there and raises TypeError for an Object instance.
+        # This optional convenience must never invalidate an otherwise
+        # successful multi-OBJ import (or leave the progress bar at 85%).
+        default_cube = getattr(self, '_cube_to_remove', None)
+        if default_cube is not None:
+            try:
+                candidate = context.scene.objects.get('Cube')
+                if (candidate is not None and default_cube.name == 'Cube'
+                        and candidate.as_pointer() == default_cube.as_pointer()):
+                    bpy.data.objects.remove(default_cube, do_unlink=True)
+                    self._cube_outcome = 'Removed untouched startup Cube'
+                else:
+                    self._cube_outcome = 'Cube preserved: object changed during import'
+            except Exception as exc:
+                self._cube_outcome = 'Cube preserved: deletion failed'
+                self.report({'WARNING'}, 'Could not remove startup Cube: ' + str(exc))
+        elif s.remove_factory_cube and context.scene.objects.get('Cube') is not None:
+            self._cube_outcome = 'Cube preserved: ' + getattr(self, '_cube_skip_reason', 'could not verify untouched startup Cube')
+
+        summary=' / '.join(f'{k}:{v}' for k,v in counts.items())
         vz=float(manifest.get('vertical_scale',1.0) or 1.0)
         building_mode=manifest.get('building_vertical_mode','legacy_all_z_scaled')
         if vz != 1.0 and building_mode != 'terrain_exaggeration_only':
-            self.report(
-                {'WARNING'},
-                "This is a legacy Campus3D package. If the Z multiplier is not 1, building heights may also be exaggerated. "
-                "Re-export the package with GSI2Campus3D v0.4.18 or later."
-            )
+            self.report({'WARNING'},
+                'Legacy Campus3D package: building heights may be exaggerated when the Z multiplier differs from 1.')
         self.report({'INFO'},f"Campus3D package import complete 1:{denom} / Z×{vz:.2f} / Terrain image:{'ON' if tex_applied else 'None/OFF'} / {summary}")
-        return {'FINISHED'}
 
 class CAMPUS3D_OT_import(Operator, ImportHelper):
     bl_idname="campus3d.import_obj"
@@ -1534,7 +1771,7 @@ class CAMPUS3D_PT_panel(Panel):
         brand.label(text="3D finishing & GLB export for CampusMint")
         brand.separator()
         brand.label(text="Est. 2026 | Powered by IINO Lab.")
-        brand.label(text="Add-on v0.4.10")
+        brand.label(text="Add-on v0.4.18")
         flow=brand.row()
         flow.scale_y=0.95
         flow.label(text="[A] QGIS  →  [B] Blender  →  GLB")
@@ -1544,7 +1781,25 @@ class CAMPUS3D_PT_panel(Panel):
         b.label(text="[B-1] Recommended: GSI2Campus3D Package")
         b.prop(s,"replace_existing_package")
         b.prop(s,"apply_package_texture")
-        b.operator("campus3d.import_package",icon='IMPORT')
+        b.prop(s,"remove_factory_cube")
+        wm=context.window_manager
+        row=b.row()
+        row.enabled=not wm.campus3d_import_running
+        row.operator("campus3d.import_package",icon='IMPORT')
+        if wm.campus3d_import_running:
+            b.operator("campus3d.cancel_package_import",icon="CANCEL")
+        if wm.campus3d_import_running or wm.campus3d_import_percent == 100:
+            b.progress(factor=wm.campus3d_import_percent/100.0,
+                       type='BAR',text=f"Import {wm.campus3d_import_percent}%")
+            b.label(text=wm.campus3d_import_stage,
+                    icon='TIME' if wm.campus3d_import_running else 'CHECKMARK')
+            if wm.campus3d_import_running and wm.campus3d_import_percent >= 85:
+                b.label(text='Updating viewport: please wait until Blender responds', icon='INFO')
+            elif wm.campus3d_import_percent == 100:
+                b.label(text='Viewport updates may briefly make Blender unresponsive', icon='INFO')
+        elif wm.campus3d_import_stage:
+            # Do not leave a misleading 85% bar after an import failure.
+            b.label(text=wm.campus3d_import_stage[:95],icon='ERROR')
         b.label(text="Select campus3d_manifest.json")
         b.label(text="Categories, scale, origin, and Z multiplier are read automatically from the manifest.")
         b.label(text="QGIS packages from v0.3.2 onward can include a Terrain image.")
@@ -1626,13 +1881,13 @@ class CAMPUS3D_PT_panel(Panel):
         b.label(text="No need to open UV Editing or Shading.")
 
         info=layout.box()
-        info.label(text="Campus3D Workflow [B] | v0.4.10")
+        info.label(text="Campus3D Workflow [B] | v0.4.15")
         info.label(text="• Automatic package Terrain image application is enabled by default.")
         info.label(text="• Existing material removal is optional for legacy OBJ imports.")
         info.label(text="• Six files are reliably organized into four building categories.")
         info.label(text="• Map alignment supports live updates.")
         info.label(text="• Create a water plane at real-world elevation 0 m with one click.")
-        info.label(text="・[A] QGIS → [B] Blender → GLB → CampusMint")
+        info.label(text="[A] QGIS -> [B] Blender -> GLB -> CampusMint")
         info.label(text="Powered by IINO Lab.")
         info.label(text="Same-extent image → apply directly")
         info.label(text="Partial image → adjust shift, scale, and rotation manually")
@@ -1640,6 +1895,7 @@ class CAMPUS3D_PT_panel(Panel):
 classes=(
     Campus3DSettings,
     CAMPUS3D_OT_import_package,
+    CAMPUS3D_OT_cancel_package,
     CAMPUS3D_OT_import,
     CAMPUS3D_OT_apply_map,
     CAMPUS3D_OT_guide,
@@ -1654,20 +1910,27 @@ classes=(
 )
 
 def register():
-    try:
-        bpy.app.translations.register(__name__, TRANSLATIONS)
-    except ValueError:
-        pass
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.Scene.campus3d_settings=PointerProperty(type=Campus3DSettings)
+    bpy.types.WindowManager.campus3d_import_running=BoolProperty(default=False,options={'SKIP_SAVE'})
+    bpy.types.WindowManager.campus3d_import_percent=IntProperty(default=0,min=0,max=100,options={'SKIP_SAVE'})
+    bpy.types.WindowManager.campus3d_import_stage=StringProperty(default='',options={'SKIP_SAVE'})
 
 def unregister():
+    global _CAMPUS3D_IMPORT_JOB
+    if _CAMPUS3D_IMPORT_JOB is not None:
+        _CAMPUS3D_IMPORT_JOB.abort('Import aborted because the add-on was disabled')
+        _CAMPUS3D_IMPORT_JOB = None
     try:
-        bpy.app.translations.unregister(__name__)
-    except ValueError:
+        if bpy.app.timers.is_registered(_campus3d_import_timer):
+            bpy.app.timers.unregister(_campus3d_import_timer)
+    except Exception:
         pass
     del bpy.types.Scene.campus3d_settings
+    for name in ('campus3d_import_stage','campus3d_import_percent','campus3d_import_running'):
+        try: delattr(bpy.types.WindowManager,name)
+        except AttributeError: pass
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
